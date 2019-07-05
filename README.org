@@ -1,0 +1,31 @@
+* Conditional Text Generation
+** Installation
+   Install allennlp from github master (latest) using conda or pip
+   pip install pyro-ppl
+** Running Experiments
+   Copy data from my server data folder
+   - VAE
+     allennlp train experiments/vae.jsonnet -s models/dialog_vae --include-package src
+   - GAN (run after VAE)
+     allennlp train experiments/dialog_gen.jsonnet -s models/dialog_gan_mse --include-package src
+** Important Code
+   - experiments
+     - vae.jsonnet (Configuration for VAE)
+     - dialog_gen.jsonnet (Configuration for GAN with MSE)
+   - src
+     - data
+       - dataset.py (DatasetReaders)
+       - iterator.py (Special iterator for GAN)
+     - modules
+       - encoders
+         - variational_encoder.py (Variational Encoder for VAE)
+       - decoders
+         - decoder.py (Decoder base class)
+         - variational_decoder.py (Variational Decoder for VAE)
+       - metrcs.py (LMPPL and NLTKSentenceBLEU)
+       - annealer.py (Different Annealing Schedules)
+     - models
+       - vae.py (Variational Autoencoder, SampleGenerator)
+       - dialog_generator.py (Generator Module for GAN)
+       - dialog_discriminator.py (Discriminator Module for GAN)
+       - dialog_gan.py (Dialog Gan, GanOptimizer and SampleGenerator)
