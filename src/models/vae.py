@@ -11,13 +11,11 @@ from allennlp.common.util import START_SYMBOL, END_SYMBOL
 from allennlp.data import Vocabulary
 from allennlp.models.model import Model
 from allennlp.nn import InitializerApplicator
-from allennlp.nn.util import get_text_field_mask
 from allennlp.training.metrics import BLEU, Average
 from allennlp.training.callbacks import Callback, Events, handle_event
 from allennlp.training import CallbackTrainer
 from pyro.distributions.torch import Normal
 from torch.distributions.kl import kl_divergence
-from src.modules.metrics import LMPerplexity
 from src.modules.annealer import LossWeight
 from src.modules.encoders import VariationalEncoder
 from src.modules.decoders.decoder import Decoder
@@ -36,7 +34,7 @@ class VAE(Model):
         Vocabulary containing source and target vocabularies. They may be under the same namespace
         (`tokens`) or the target tokens can have a different namespace, in which case it needs to
         be specified as `target_namespace`.
-    encoder : ``Seq2VecEncoder``, required
+    variational_encoder : ``VariationalEncoder``, required
         The encoder model of which to pass the source tokens
     decoder : ``Model``, required
         The variational decoder model of which to pass the the latent variable
@@ -66,7 +64,6 @@ class VAE(Model):
         self._end_index = self.vocab.get_token_index(END_SYMBOL)
         self._pad_index = self.vocab.get_token_index(self.vocab._padding_token)  # pylint: disable=protected-access
         self._bleu = BLEU(exclude_indices={self._pad_index, self._end_index, self._start_index})
-        self._ppl = LMPerplexity()
 
         self._kl_metric = Average()
         self.kl_weight = kl_weight
@@ -110,7 +107,6 @@ class VAE(Model):
         if not self.training:
             best_predictions = output_dict["predictions"]
             self._bleu(best_predictions, target_tokens["tokens"])
-            self._ppl(output_dict["logits"], get_text_field_mask(target_tokens)[:, 1:])
 
         return output_dict
 
@@ -119,8 +115,6 @@ class VAE(Model):
         all_metrics: Dict[str, float] = {}
         if self._bleu and not self.training:
             all_metrics.update(self._bleu.get_metric(reset=reset))
-        if self._ppl and not self.training:
-            all_metrics.update(self._ppl.get_metric(reset=reset))
 
         all_metrics.update({'kl': float(self._kl_metric.get_metric(reset=reset))})
         return all_metrics
