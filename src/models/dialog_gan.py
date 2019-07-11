@@ -164,7 +164,6 @@ class DialogGan(Model):
         return metrics
 
     @overrides
-    # simple_seq2seq's decode
     def decode(self, output_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         """
         Finalize predictions.
@@ -177,19 +176,24 @@ class DialogGan(Model):
         predicted_indices = output_dict["predictions"]
         if not isinstance(predicted_indices, numpy.ndarray):
             predicted_indices = predicted_indices.detach().cpu().numpy()
-        all_predicted_tokens = []
-        for indices in predicted_indices:
-            # Beam search gives us the top k results for each source sentence in the batch
-            # but we just want the single best.
-            if len(indices.shape) > 1:
-                indices = indices[0]
-            indices = list(indices)
-            # Collect indices till the first end_symbol
-            if self._end_index in indices:
-                indices = indices[:indices.index(self._end_index)]
-            predicted_tokens = [self.vocab.get_token_from_index(x) for x in indices]
-            all_predicted_tokens.append(predicted_tokens)
-        output_dict["predicted_tokens"] = all_predicted_tokens
+        all_predicted_sentences = []
+        for batch_indices in predicted_indices:
+            # Check if multiple responses are generated for each sentence
+            # if yes, decode all of them
+            if len(batch_indices.shape) > 1:
+                index_list = batch_indices.tolist()
+            else:
+                index_list = list(batch_indices.tolist())
+
+            row_predicted_sentence = []
+            for indices in index_list:
+                # Collect indices till the first end_symbol
+                if self._end_index in indices:
+                    indices = indices[:indices.index(self._end_index)]
+                    predicted_tokens = [self.vocab.get_token_from_index(x) for x in indices]
+                    row_predicted_sentence.append(' '.join(predicted_tokens[1:]))
+            all_predicted_sentences.append(row_predicted_sentence)
+        output_dict["predicted_sentences"] = all_predicted_sentences
         return output_dict
 
 
@@ -277,10 +281,10 @@ class DialogSampleGen(Callback):
     def _display_dialog(self, decoder, instance, output_dict):
         query_tokens = [str(token) for token in instance['source_tokens']]
         response_tokens = [str(token) for token in instance['target_tokens']]
-        predicted_tokens = output_dict["predicted_tokens"]
+        predicted_sentences = output_dict["predicted_sentences"]
+        prediction = random.choice(predicted_sentences)
         query = ' '.join(query_tokens[1:-1])
         response = ' '.join(response_tokens[1:-1])
-        prediction = ' '.join(predicted_tokens[1:])
         logger.info(f'{query} -> {prediction} <-> ####[{response}]####')
 
     @handle_event(Events.VALIDATE, priority=1000)
