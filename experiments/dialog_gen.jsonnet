@@ -89,7 +89,7 @@ local GEN_LEARNING_RATE = 0.001;
       "checkpoint",
       {"type": "track_metrics", "patience": PATIENCE, "validation_metric": "+F-BLEU"},
       "validate",
-      "gan_generate_samples",
+      "generate_dialog_samples",
       "log_to_tensorboard"
     ]
   }

@@ -261,7 +261,7 @@ class TrainGan(TrainSupervised):
         trainer.optimizer.stage = stage
 
 
-@Callback.register("gan_generate_samples")
+@Callback.register("generate_dialog_samples")
 class DialogSampleGen(Callback):
     """
     This callback handles generating of sample dialog
