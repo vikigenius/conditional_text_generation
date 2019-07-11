@@ -87,7 +87,7 @@ local GEN_LEARNING_RATE = 0.001;
       "generate_training_batches",
       "train-gan",
       "checkpoint",
-      {"type": "track_metrics", "patience": PATIENCE, "validation_metric": "+F-BLEU"},
+      {"type": "track_metrics", "patience": PATIENCE, "validation_metric": "+_S_BLEU4F"},
       "validate",
       "generate_dialog_samples",
       "log_to_tensorboard"

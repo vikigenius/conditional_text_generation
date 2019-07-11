@@ -49,9 +49,13 @@ class DialogGan(Model):
         self._start_index = self.vocab.get_token_index(START_SYMBOL)
         self._end_index = self.vocab.get_token_index(END_SYMBOL)
         self._pad_index = self.vocab.get_token_index(self.vocab._padding_token)  # pylint: disable=protected-access
-        self._bleu = NLTKSentenceBLEU(ngram_weights=(1/3, 1/3, 1/3),
-                                      n_hyps=self._num_responses, smoothing_function=SmoothingFunction().method7,
-                                      exclude_indices={self._pad_index, self._end_index, self._start_index})
+        self.s_bleu4 = NLTKSentenceBLEU(n_hyps=self._num_responses, smoothing_function=SmoothingFunction().method7,
+                                        exclude_indices={self._pad_index, self._end_index, self._start_index},
+                                        prefix='_S_BLEU4')
+        self.n_bleu2 = NLTKSentenceBLEU(ngram_weights=(1/2, 1/2),
+                                        n_hyps=self._num_responses,
+                                        exclude_indices={self._pad_index, self._end_index, self._start_index},
+                                        prefix='_BLEU2')
 
         # We need our optimizer to know which parameters came from
         # which model, so we cheat by adding tags to them.
@@ -148,7 +152,9 @@ class DialogGan(Model):
                 decoder_dict = self._decoder.generate(responses)
                 predictions = decoder_dict["predictions"].view(batch_size, self._num_responses, -1)
                 output.update({"predictions": predictions})
-                self._bleu(predictions, target_tokens["tokens"])
+                if target_tokens:
+                    self.s_bleu4(predictions, target_tokens["tokens"])
+                    self.n_bleu2(predictions, target_tokens["tokens"])
         else:
             raise ValueError(f"Invalid stage: {stage}")
         return output
@@ -160,7 +166,8 @@ class DialogGan(Model):
             metrics.update({key: float(metric.get_metric(reset=reset)) for key, metric in self._disc_metrics.items()})
         else:
             metrics.update(self.generator.get_metrics(reset=reset))
-            metrics.update(self._bleu.get_metric(reset=reset))
+            metrics.update(self.s_bleu4.get_metric(reset=reset))
+            metrics.update(self.n_bleu2.get_metric(reset=reset))
         return metrics
 
     @overrides
