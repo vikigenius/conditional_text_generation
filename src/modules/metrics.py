@@ -107,4 +107,4 @@ class NLTKSentenceBLEU(Metric):
         f_bleu = 2*precision_bleu*recall_bleu/(precision_bleu + recall_bleu + 1e-13)
         if reset:
             self.reset()
-        return {"P-BLEU": precision_bleu, 'R-BLEU': recall_bleu, 'F-BLEU': f_bleu}
+        return {"_P-BLEU": precision_bleu, '_R-BLEU': recall_bleu, 'F-BLEU': f_bleu}
