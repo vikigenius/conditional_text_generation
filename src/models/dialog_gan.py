@@ -15,8 +15,6 @@ from allennlp.training.optimizers import Optimizer
 from allennlp.training.callbacks import Callback, Events, handle_event, TrainSupervised
 from allennlp.training.metrics import Average
 from allennlp.training import CallbackTrainer
-from allennlp.nn import util as nn_util
-from src.modules.metrics import LMPerplexity
 from src.modules.encoders import VariationalEncoder
 from src.modules.decoders import VariationalDecoder
 from src.modules.metrics import NLTKSentenceBLEU
@@ -54,7 +52,6 @@ class DialogGan(Model):
         self._bleu = NLTKSentenceBLEU(ngram_weights=(1/3, 1/3, 1/3),
                                       n_hyps=self._num_responses, smoothing_function=SmoothingFunction().method7,
                                       exclude_indices={self._pad_index, self._end_index, self._start_index})
-        self._ppl = LMPerplexity()
 
         # We need our optimizer to know which parameters came from
         # which model, so we cheat by adding tags to them.
@@ -151,9 +148,7 @@ class DialogGan(Model):
                 decoder_dict = self._decoder.generate(responses)
                 predictions = decoder_dict["predictions"].view(batch_size, self._num_responses, -1)
                 output.update({"predictions": predictions})
-                target_mask = nn_util.get_text_field_mask(target_tokens)
                 self._bleu(predictions, target_tokens["tokens"])
-                self._ppl(decoder_dict["logits"], target_mask.repeat(self._num_responses, 1))
         else:
             raise ValueError(f"Invalid stage: {stage}")
         return output
@@ -166,7 +161,6 @@ class DialogGan(Model):
         else:
             metrics.update(self.generator.get_metrics(reset=reset))
             metrics.update(self._bleu.get_metric(reset=reset))
-            metrics.update(self._ppl.get_metric(reset=reset))
         return metrics
 
     @overrides
