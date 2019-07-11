@@ -8,8 +8,8 @@ local BATCH_SIZE = 32;
 local TEMPERATURE = 1e-5;
 local ACTIVATION = 'relu';
 
-local NUM_EPOCHS = 100;
-local PATIENCE = 20;
+local NUM_EPOCHS = 30;
+local PATIENCE = 5;
 local SUMMARY_INTERVAL = 10;
 local GEN_OPTIMIZER = "adam";
 local DISC_OPTIMIZER = "adam";
