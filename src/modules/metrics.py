@@ -3,7 +3,7 @@ from overrides import overrides
 import torch
 
 from allennlp.training.metrics.metric import Metric
-from typing import Optional, Iterable, Callable, Set, Dict
+from typing import Optional, Iterable, Callable, Set, Dict, Union
 import math
 import numpy as np
 from allennlp.training.metrics.entropy import Entropy
@@ -35,16 +35,41 @@ class LMPerplexity(Metric):
 
 @Metric.register("nltk_sentence_bleu")
 class NLTKSentenceBLEU(Metric):
+    """
+    Bilingual Evaluation Understudy (BLEU).
+    BLEU is a common metric used for evaluating the quality of machine translations
+    against a set of reference translations. See `Papineni et. al.,
+    "BLEU: a method for automatic evaluation of machine translation", 2002
+    <https://www.semanticscholar.org/paper/8ff93cfd37dced279134c9d642337a2085b31f59/>`_.
+    Parameters
+    ----------
+    ngram_weights : ``Iterable[float]``, optional (default = (0.25, 0.25, 0.25, 0.25))
+        Weights to assign to scores for each ngram size.
+    smoothing_function : ``Callable``, optional (default = None)
+        The smoothing function to use.
+    n_refs: ``int``, optional (default = 1)
+    n_hyps: ``int``, optional (default = 1)
+    exclude_indices : ``Set[int]``, optional (default = None)
+        Indices to exclude when calculating ngrams. This should usually include
+        the indices of the start, end, and pad tokens.
+    auto_reweigh: ``bool``, optional (default = False)
+    """
     def __init__(self,
                  ngram_weights: Iterable[float] = (0.25, 0.25, 0.25, 0.25),
                  smoothing_function: Optional[Callable] = None,
                  n_refs: int = 1,
                  n_hyps: int = 1,
                  exclude_indices: Set[int] = None,
-                 auto_reweigh: bool = False) -> None:
+                 auto_reweigh: bool = False,
+                 prefix: Union[str, Iterable[str]] = 'BLEU') -> None:
         super().__init__()
         self.sentence_bleu = lambda ref, hyp: sentence_bleu(
             ref, hyp, ngram_weights, smoothing_function=smoothing_function, auto_reweigh=auto_reweigh)
+
+        self._prefix = [prefix]*3 if isinstance(prefix, str) else prefix
+
+        if len(self._prefix) != 3:
+            raise ValueError('Expected 3 prefixes got {len(self._prefix)} instead')
 
         self._exclude_indices = exclude_indices or set()
         self.n_refs = n_refs
@@ -105,4 +130,5 @@ class NLTKSentenceBLEU(Metric):
         f_bleu = 2*precision_bleu*recall_bleu/(precision_bleu + recall_bleu + 1e-13)
         if reset:
             self.reset()
-        return {"_P-BLEU": precision_bleu, '_R-BLEU': recall_bleu, 'F-BLEU': f_bleu}
+        return {f"{self._prefix[0]}P": precision_bleu,
+                f'{self._prefix[1]}R': recall_bleu, '{self._prefix[2]}F': f_bleu}
