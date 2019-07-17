@@ -15,7 +15,7 @@ from allennlp.training.optimizers import Optimizer
 from allennlp.training.callbacks import Callback, Events, handle_event, TrainSupervised
 from allennlp.training.metrics import Average
 from allennlp.training import CallbackTrainer
-from src.modules.encoders import VariationalEncoder
+from src.modules.encoders import DeterministicEncoder
 from src.modules.decoders import VariationalDecoder
 from src.modules.metrics import NLTKSentenceBLEU
 from nltk.translate.bleu_score import SmoothingFunction
@@ -33,7 +33,7 @@ class DialogGan(Model):
     # pylint: disable=abstract-method
     def __init__(self,
                  vocab: Vocabulary,
-                 encoder: VariationalEncoder,
+                 encoder: DeterministicEncoder,
                  decoder: VariationalDecoder,
                  generator: Model,
                  discriminator: Model,
@@ -77,8 +77,6 @@ class DialogGan(Model):
             "_gl": Average(),
             "gce": Average(),
             "_gmse": Average(),
-            "_mean": Average(),
-            "_stdev": Average()
         }
 
     def encode_dialog(self, encoder: VariationalEncoder,
@@ -88,9 +86,8 @@ class DialogGan(Model):
         query_dict = {'query_' + key: value for key, value in query_dict.items()}
         response_dict = {'response_' + key: value for key, value in response_dict.items()}
         dialog_dict = {**query_dict, **response_dict}
-        query_latent = encoder.reparametrize(dialog_dict['query_prior'], dialog_dict['query_posterior'], temperature)
-        response_latent = encoder.reparametrize(dialog_dict['response_prior'], dialog_dict['response_posterior'],
-                                                temperature)
+        query_latent = query_dict['query_latent']
+        response_latent = response_dict['response_latent']
         if self.training:
             query_latent.requires_grad_()
             response_latent.requires_grad_()
@@ -121,8 +118,7 @@ class DialogGan(Model):
             self._disc_metrics['drl'](output['loss'])
             self._disc_metrics['dracc'](output['accuracy'])
         elif stage == "discriminator_fake":
-            predicted_latent = self.generator(dialog_dict['query_prior'],
-                                              dialog_dict['query_posterior'])["predicted_dialog"]
+            predicted_latent = self.generator(dialog_dict['query_latent'])["predicted_dialog"]
             batch_size = predicted_latent.size(0)
             device = predicted_latent.device
             labels = torch.zeros([batch_size, 1]).to(device)
@@ -130,23 +126,19 @@ class DialogGan(Model):
             self._disc_metrics['dfl'](output['loss'])
             self._disc_metrics['dfacc'](output['accuracy'])
         elif stage == "generator":
-            response_mean = dialog_dict["response_posterior"].mean
-            output = self.generator(dialog_dict['query_prior'], dialog_dict['query_posterior'], self.discriminator)
+            output = self.generator(dialog_dict['query_latent'], self.discriminator)
             predicted_response = output["predicted_response"]
             mse = F.mse_loss(predicted_response, response_mean)
             self._gen_metrics['gce'](output['loss'])
             output["loss"] += mse*self._mse_weight
             self._gen_metrics['_gl'](output['loss'])
             self._gen_metrics['_gmse'](mse)
-            self._gen_metrics['_mean'](predicted_response.mean())
-            self._gen_metrics['_stdev'](predicted_response.std())
             if not self.training:
                 batch_size = predicted_response.size(0)
                 response_list = [predicted_response]
                 with torch.no_grad():
                     for rno in range(self._num_responses - 1):
-                        response_latent = self.generator(dialog_dict['query_prior'],
-                                                         dialog_dict['query_posterior'])["predicted_response"]
+                        response_latent = self.generator(dialog_dict['response_latent'])["predicted_response"]
                         response_list.append(response_latent)
                 responses = torch.cat(response_list, dim=0)
                 decoder_dict = self._decoder.generate(responses)

@@ -8,7 +8,7 @@ from allennlp.models.model import Model
 from allennlp.nn.initializers import InitializerApplicator
 from allennlp.training.metrics import BooleanAccuracy
 from allennlp.nn.activations import Activation
-from src.modules.encoders import GaussianEncoder
+from src.modules.encoders import DeterministicEncoder
 
 
 @Model.register("dialog-generator")
@@ -16,15 +16,9 @@ class DialogGenerator(Model):
     def __init__(self,
                  latent_dim: int,
                  activation: Activation = LeakyReLU(0.2),
-                 temperature: int = 1.0,
                  initializer: InitializerApplicator = None):
         super().__init__(None)
-        self._mean_mapper = Sequential(
-            Linear(latent_dim, 2*latent_dim), BatchNorm1d(2*latent_dim), activation,
-            Linear(2*latent_dim, 2*latent_dim), BatchNorm1d(2*latent_dim), activation,
-            Linear(2*latent_dim, latent_dim)
-        )
-        self._logvar_mapper = Sequential(
+        self._latent_mapper = Sequential(
             Linear(latent_dim, 2*latent_dim), BatchNorm1d(2*latent_dim), activation,
             Linear(2*latent_dim, 2*latent_dim), BatchNorm1d(2*latent_dim), activation,
             Linear(2*latent_dim, latent_dim)
@@ -36,23 +30,14 @@ class DialogGenerator(Model):
 
     @overrides
     def forward(self,
-                query_prior: Normal,
-                query_posterior: Normal,
+                query_latent: torch.Tensor,
                 discriminator: Optional[Model] = None) -> Dict[str, torch.Tensor]:
         query_mean = query_posterior.mean
         query_logvar = 2*torch.log(query_posterior.stddev)
         if self.training:
-            query_mean.requires_grad_()
-            query_logvar.requires_grad_()
-            temperature = 1.0
-        else:
-            temperature = self._temperature
-        pred_mean = self._mean_mapper(query_mean)
-        pred_logvar = self._logvar_mapper(query_logvar)
-        pred_posterior = Normal(pred_mean, 0.5*pred_logvar.exp())
-        query_latent = GaussianEncoder.reparametrize(query_prior, query_posterior, temperature)
-        pred_latent = GaussianEncoder.reparametrize(query_prior, pred_posterior, temperature)
+            query_latent.requires_grad_()
         output_dict = {}
+        pred_latent = self._latent_mapper(query_latent)
         pred_dialog = torch.cat((query_latent, pred_latent), dim=-1)
         if discriminator is not None:
             predicted = discriminator(pred_dialog)["output"]
