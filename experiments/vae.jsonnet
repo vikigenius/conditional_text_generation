@@ -12,8 +12,7 @@ local BIDIRECTIONAL = true;
 local NUM_EPOCHS = 30;
 local PATIENCE = 5;
 local SUMMARY_INTERVAL = 10;
-local GRAD_CLIPPING = 5;
-local GRAD_NORM = 5;
+local GRAD_NORM = 5.0;
 local SHOULD_LOG_PARAMETER_STATISTICS = false;
 local SHOULD_LOG_LEARNING_RATE = true;
 local OPTIMIZER = "adam";
@@ -103,8 +102,7 @@ local ANNEAL_SLOPE = 0.5;
       "lr": LEARNING_RATE
     },
     "callbacks": [
-      "generate_training_batches",
-      {"type": "train_supervised", "grad_norm": GRAD_NORM, "grad_clipping": GRAD_CLIPPING},
+      {"type": "gradient_norm_and_clip", "grad_norm": GRAD_NORM},
       "checkpoint",
       {"type": "track_metrics", "patience": PATIENCE, "validation_metric": "+BLEU"},
       "validate",
