@@ -17,13 +17,13 @@ from allennlp.training import CallbackTrainer
 from pyro.distributions.torch import Normal
 from torch.distributions.kl import kl_divergence
 from src.modules.annealer import LossWeight
-from src.modules.encoders import DeterministicEncoder
+from src.modules.encoders.deterministic_encoder import DeterministicEncoder
 from src.modules.decoders.decoder import Decoder
 
 logger = logging.getLogger(__name__)
 
 
-@Model.register("vae")
+@Model.register("dae")
 class DAE(Model):
     """
     This ``DAE`` class is a :class:`Model` which implements a simple DAE

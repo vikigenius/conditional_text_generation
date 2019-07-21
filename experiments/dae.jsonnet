@@ -36,9 +36,9 @@ local ANNEAL_SLOPE = 0.5;
   "train_data_path": "data/interim/dialog/train_sentences.tsv",
   "validation_data_path": "data/interim/dialog/valid_sentences.tsv",
   "model": {
-    "type": "vae",
-    "variational_encoder": {
-      "type": "gaussian",
+    "type": "dae",
+    "deterministic_encoder": {
+      "type": "deterministic",
       "text_field_embedder": {
         "token_embedders": {
           "tokens": {
