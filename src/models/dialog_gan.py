@@ -12,7 +12,7 @@ from allennlp.models.model import Model
 from allennlp.data.vocabulary import Vocabulary
 from allennlp.data import Instance
 from allennlp.training.optimizers import Optimizer
-from allennlp.training.callbacks import Callback, Events, handle_event, TrainSupervised
+from allennlp.training.callbacks import Callback, Events, handle_event
 from allennlp.training.metrics import Average
 from allennlp.training import CallbackTrainer
 from src.modules.encoders import DeterministicEncoder
@@ -250,8 +250,8 @@ class GanOptimizer(torch.optim.Optimizer):
         return cls(generator_optimizer=generator_optimizer, discriminator_optimizer=discriminator_optimizer)
 
 
-@Callback.register("train-gan")
-class TrainGan(TrainSupervised):
+@Callback.register("gan-callback")
+class TrainGan(Callback):
     @handle_event(Events.BATCH_START)
     def set_stage(self, trainer):
         batch, = trainer.batch_group
