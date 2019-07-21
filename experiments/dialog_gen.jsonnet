@@ -84,8 +84,7 @@ local GEN_LEARNING_RATE = 0.001;
       }
     },
     "callbacks": [
-      "generate_training_batches",
-      "train-gan",
+      "gan-callback",
       "checkpoint",
       {"type": "track_metrics", "patience": PATIENCE, "validation_metric": "+_S_BLEU4F"},
       "validate",
