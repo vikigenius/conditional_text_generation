@@ -15,7 +15,7 @@ from allennlp.training.optimizers import Optimizer
 from allennlp.training.callbacks import Callback, Events, handle_event
 from allennlp.training.metrics import Average
 from allennlp.training import CallbackTrainer
-from src.modules.encoders import DeterministicEncoder
+from src.modules.encoders.deterministic_encoder import DeterministicEncoder
 from src.modules.decoders import VariationalDecoder
 from src.modules.metrics import NLTKSentenceBLEU
 from nltk.translate.bleu_score import SmoothingFunction
@@ -79,7 +79,7 @@ class DialogGan(Model):
             "_gmse": Average(),
         }
 
-    def encode_dialog(self, encoder: VariationalEncoder,
+    def encode_dialog(self, encoder: DeterministicEncoder,
                       source_tokens: Dict[str, torch.Tensor], target_tokens: Dict[str, torch.Tensor], temperature):
         query_dict = encoder(source_tokens)
         response_dict = encoder(target_tokens)
@@ -128,7 +128,7 @@ class DialogGan(Model):
         elif stage == "generator":
             output = self.generator(dialog_dict['query_latent'], self.discriminator)
             predicted_response = output["predicted_response"]
-            mse = F.mse_loss(predicted_response, response_mean)
+            mse = F.mse_loss(predicted_response, dialog_dict['response_latent'])
             self._gen_metrics['gce'](output['loss'])
             output["loss"] += mse*self._mse_weight
             self._gen_metrics['_gl'](output['loss'])
@@ -138,7 +138,7 @@ class DialogGan(Model):
                 response_list = [predicted_response]
                 with torch.no_grad():
                     for rno in range(self._num_responses - 1):
-                        response_latent = self.generator(dialog_dict['response_latent'])["predicted_response"]
+                        response_latent = self.generator(dialog_dict['query_latent'])["predicted_response"]
                         response_list.append(response_latent)
                 responses = torch.cat(response_list, dim=0)
                 decoder_dict = self._decoder.generate(responses)

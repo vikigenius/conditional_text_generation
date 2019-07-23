@@ -1,6 +1,6 @@
 local SEED = 0;
 local READER = "autoencoder";
-local CUDA = 0;
+local CUDA = 1;
 
 local EMBEDDING_DIM = 300;
 local HIDDEN_DIM = 512;
@@ -9,7 +9,7 @@ local BATCH_SIZE = 128;
 local NUM_LAYERS = 1;
 local BIDIRECTIONAL = true;
 
-local NUM_EPOCHS = 30;
+local NUM_EPOCHS = 50;
 local PATIENCE = 5;
 local SUMMARY_INTERVAL = 10;
 local GRAD_NORM = 5.0;
@@ -37,7 +37,6 @@ local ANNEAL_SLOPE = 0.5;
   "model": {
     "type": "dae",
     "deterministic_encoder": {
-      "type": "deterministic",
       "text_field_embedder": {
         "token_embedders": {
           "tokens": {
@@ -106,7 +105,6 @@ local ANNEAL_SLOPE = 0.5;
       "checkpoint",
       {"type": "track_metrics", "patience": PATIENCE, "validation_metric": "+BLEU"},
       "validate",
-      "generate_samples",
       "log_to_tensorboard"
     ]
   }

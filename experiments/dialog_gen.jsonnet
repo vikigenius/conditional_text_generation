@@ -1,5 +1,5 @@
 local SEED = 0;
-local CUDA = 0;
+local CUDA = 1;
 local READER = "dialog-gan";
 local PREDICTOR = 'dialog-gen';
 
@@ -24,7 +24,7 @@ local GEN_LEARNING_RATE = 0.001;
     "type": READER,
   },
   "vocabulary": {
-    "directory_path": "models/dialog_vae/vocabulary"
+    "directory_path": "models/dialog_dae/vocabulary"
   },
   "train_data_path": "data/interim/dialog/train_dialog.tsv",
   "validation_data_path": "data/interim/dialog/valid_dialog.tsv",
@@ -32,14 +32,14 @@ local GEN_LEARNING_RATE = 0.001;
     "type": "dialog_gan",
     "encoder": {
       "_pretrained": {
-        "archive_file": "models/dialog_vae/model.tar.gz",
+        "archive_file": "models/dialog_dae/model.tar.gz",
         "module_path": '_encoder',
         "freeze": true
       },
     },
     "decoder": {
       "_pretrained": {
-        "archive_file": "models/dialog_vae/model.tar.gz",
+        "archive_file": "models/dialog_dae/model.tar.gz",
         "module_path": '_decoder',
         "freeze": true,
       },

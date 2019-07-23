@@ -50,7 +50,7 @@ class DAE(Model):
                  kl_weight: LossWeight,
                  temperature: float = 1.0,
                  initializer: InitializerApplicator = InitializerApplicator()) -> None:
-        super(VAE, self).__init__(vocab)
+        super(DAE, self).__init__(vocab)
 
         self._encoder = deterministic_encoder
         self._decoder = decoder
@@ -91,7 +91,7 @@ class DAE(Model):
         output_dict.update(self._decoder(target_tokens, z))
         rec_loss = output_dict['loss']
 
-        output_dict['loss'] = rec_loss + kl_loss
+        output_dict['loss'] = rec_loss
 
         if not self.training:
             best_predictions = output_dict["predictions"]
@@ -143,19 +143,19 @@ class DAE(Model):
         return output_dict
 
 
-@Callback.register("generate_samples")
-class SampleGen(Callback):
-    """
-    This callback handles generating of sample dialog
-    """
-    def __init__(self,
-                 num_samples: int = 1):
-        self.num_samples = num_samples
+# @Callback.register("generate_samples")
+# class SampleGen(Callback):
+#     """
+#     This callback handles generating of sample dialog
+#     """
+#     def __init__(self,
+#                  num_samples: int = 1):
+#         self.num_samples = num_samples
 
-    @handle_event(Events.VALIDATE, priority=1000)
-    def generate_sample(self, trainer: 'CallbackTrainer'):
-        logger.info("generating sample dialog")
-        trainer.model.eval()
-        gen_tokens = trainer.model.generate(z)['predicted_tokens'][0]
-        gen_sent = ' '.join(gen_tokens[1:])
-        logger.info(gen_sent)
+#     @handle_event(Events.VALIDATE, priority=1000)
+#     def generate_sample(self, trainer: 'CallbackTrainer'):
+#         logger.info("generating sample dialog")
+#         trainer.model.eval()
+#         gen_tokens = trainer.model.generate(z)['predicted_tokens'][0]
+#         gen_sent = ' '.join(gen_tokens[1:])
+#         logger.info(gen_sent)

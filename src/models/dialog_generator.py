@@ -8,7 +8,7 @@ from allennlp.models.model import Model
 from allennlp.nn.initializers import InitializerApplicator
 from allennlp.training.metrics import BooleanAccuracy
 from allennlp.nn.activations import Activation
-from src.modules.encoders import DeterministicEncoder
+from src.modules.encoders.deterministic_encoder import DeterministicEncoder
 
 
 @Model.register("dialog-generator")
@@ -23,7 +23,6 @@ class DialogGenerator(Model):
             Linear(2*latent_dim, 2*latent_dim), BatchNorm1d(2*latent_dim), activation,
             Linear(2*latent_dim, latent_dim)
         )
-        self._temperature = temperature
         self._ce_loss = BCEWithLogitsLoss()
         self._accuracy = BooleanAccuracy()
         initializer(self)
@@ -32,8 +31,6 @@ class DialogGenerator(Model):
     def forward(self,
                 query_latent: torch.Tensor,
                 discriminator: Optional[Model] = None) -> Dict[str, torch.Tensor]:
-        query_mean = query_posterior.mean
-        query_logvar = 2*torch.log(query_posterior.stddev)
         if self.training:
             query_latent.requires_grad_()
         output_dict = {}

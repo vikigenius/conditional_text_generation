@@ -30,8 +30,8 @@ class DeterministicEncoder(nn.Module, Registrable):
         self._text_field_embedder = text_field_embedder
         self._encoder = encoder
         self._latent_dim = latent_dim
-        self._hidden2latent = Linear(self._encoder.get_output_dim(),
-                                     self._latent_dim)
+        self._hidden2latent = nn.Linear(self._encoder.get_output_dim(),
+                                        self._latent_dim)
 
     @property
     def latent_dim(self):
