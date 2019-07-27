@@ -5,15 +5,15 @@ local PREDICTOR = 'dialog-gen';
 
 local LATENT_DIM = 128;
 local BATCH_SIZE = 32;
-local TEMPERATURE = 1e-5;
 local ACTIVATION = 'relu';
 
-local NUM_EPOCHS = 30;
+local NUM_EPOCHS = 50;
 local PATIENCE = 5;
+local GRAD_NORM = 5;
 local SUMMARY_INTERVAL = 10;
 local GEN_OPTIMIZER = "adam";
 local DISC_OPTIMIZER = "adam";
-local DISC_LEARNING_RATE = 0.001;
+local DISC_LEARNING_RATE = 0.00001;
 local GEN_LEARNING_RATE = 0.001;
 
 {
@@ -47,20 +47,13 @@ local GEN_LEARNING_RATE = 0.001;
     "generator": {
       "type": "dialog-generator",
       "latent_dim": LATENT_DIM,
-      'activation': ACTIVATION,
-      "initializer": [
-        [".*", {"type": "normal", "mean": 0, "std": 0.02}],
-      ]
+      'activation': ACTIVATION
     },
     "discriminator": {
       "type": "dialog-discriminator",
       "input_dim": 2*LATENT_DIM,
       "hidden_dim": LATENT_DIM,
-      "initializer": [
-        [".*", {"type": "normal", "mean": 0, "std": 0.02}],
-      ]
     },
-    "temperature": TEMPERATURE,
   },
   "iterator": {
     "type": "homogeneous_bucket",

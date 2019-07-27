@@ -22,7 +22,6 @@ class DialogDiscriminator(Model):
             Linear(hidden_dim, 1)
         )
         self._loss = BCEWithLogitsLoss()
-        initializer(self)
 
     def forward(self,
                 inputs: torch.Tensor,

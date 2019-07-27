@@ -25,7 +25,6 @@ class DialogGenerator(Model):
         )
         self._ce_loss = BCEWithLogitsLoss()
         self._accuracy = BooleanAccuracy()
-        initializer(self)
 
     @overrides
     def forward(self,

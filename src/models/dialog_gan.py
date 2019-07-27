@@ -38,13 +38,11 @@ class DialogGan(Model):
                  generator: Model,
                  discriminator: Model,
                  mse_weight: float = 2.0,
-                 temperature: float = 1.0,
                  num_responses: int = 10) -> None:
         super().__init__(vocab)
         self._encoder = encoder
         self._decoder = decoder
         self._mse_weight = 2.0
-        self._temperature = temperature
         self._num_responses = num_responses
         self._start_index = self.vocab.get_token_index(START_SYMBOL)
         self._end_index = self.vocab.get_token_index(END_SYMBOL)
@@ -80,7 +78,7 @@ class DialogGan(Model):
         }
 
     def encode_dialog(self, encoder: DeterministicEncoder,
-                      source_tokens: Dict[str, torch.Tensor], target_tokens: Dict[str, torch.Tensor], temperature):
+                      source_tokens: Dict[str, torch.Tensor], target_tokens: Dict[str, torch.Tensor]):
         query_dict = encoder(source_tokens)
         response_dict = encoder(target_tokens)
         query_dict = {'query_' + key: value for key, value in query_dict.items()}
@@ -107,8 +105,7 @@ class DialogGan(Model):
             stage = stage[0]
         else:
             stage = "generator"
-        temperature = 1.0 if self.training else self._temperature
-        dialog_dict = self.encode_dialog(self._encoder, source_tokens, target_tokens, temperature)
+        dialog_dict = self.encode_dialog(self._encoder, source_tokens, target_tokens)
         if stage == "discriminator_real":
             dialog_latent = dialog_dict["dialog_latent"]
             batch_size = dialog_latent.size(0)
