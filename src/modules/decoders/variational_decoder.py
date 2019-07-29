@@ -112,7 +112,7 @@ class VariationalDecoder(Decoder):
         batch_size, _ = latent.size()
         if reset_states:
             self.rnn.reset_states()
-        last_genereation = latent.new_full((batch_size, 1),
+        last_generation = latent.new_full((batch_size, 1),
                                            fill_value=self._start_index, dtype=torch.long)
         h0 = latent.new_zeros(self.dec_num_layers, batch_size, self.dec_hidden)  # pylint: disable=invalid-name
         c0 = latent.new_zeros(self.dec_num_layers, batch_size, self.dec_hidden)  # pylint: disable=invalid-name
@@ -122,14 +122,14 @@ class VariationalDecoder(Decoder):
         restoration_indices = torch.arange(batch_size)
         restoration_indices = restoration_indices.to(h0.device)
         self.rnn._update_states((h0, c0), restoration_indices)  # pylint: disable=protected-access
-        generations = [last_genereation]
+        generations = [last_generation]
         for _ in range(max_len):
-            embeddings = self._target_embedder({"tokens": last_genereation})
-            mask = get_text_field_mask({"tokens": last_genereation})
+            embeddings = self._target_embedder({"tokens": last_generation})
+            mask = get_text_field_mask({"tokens": last_generation})
             logits = self._run_decoder(embeddings, mask, None, latent)
             class_probabilities = F.softmax(logits, 2)
-            _, last_genereation = torch.max(class_probabilities, 2)
-            generations.append(last_genereation)
+            _, last_generation = torch.max(class_probabilities, 2)
+            generations.append(last_generation)
         generations = torch.cat(generations, 1)
         self.rnn.stateful = False
         return {"logits": logits, "predictions": generations, "latent": latent}

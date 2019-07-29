@@ -17,7 +17,6 @@ local SHOULD_LOG_PARAMETER_STATISTICS = false;
 local SHOULD_LOG_LEARNING_RATE = true;
 local OPTIMIZER = "adam";
 local LEARNING_RATE = 0.001;
-local INIT_UNIFORM_RANGE_AROUND_ZERO = 0.1;
 
 {
   "random_seed": SEED,
@@ -68,6 +67,7 @@ local INIT_UNIFORM_RANGE_AROUND_ZERO = 0.1;
       },
       "latent_dim": LATENT_DIM
     },
+  },
   "iterator": {
     "type": "bucket",
     "batch_size" : BATCH_SIZE,

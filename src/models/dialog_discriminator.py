@@ -3,7 +3,6 @@ import torch
 from typing import Dict
 from allennlp.models.model import Model
 from allennlp.nn.activations import Activation
-from allennlp.nn.initializers import InitializerApplicator
 from torch.nn import Linear, BCEWithLogitsLoss, Sequential, BatchNorm1d, LeakyReLU
 
 
@@ -12,8 +11,7 @@ class DialogDiscriminator(Model):
     def __init__(self,
                  input_dim: int,
                  hidden_dim: int,
-                 activation: Activation = LeakyReLU(0.2),
-                 initializer: InitializerApplicator = None):
+                 activation: Activation = LeakyReLU(0.2)):
         super().__init__(None)
         self._activation = activation
         self._classifier = Sequential(

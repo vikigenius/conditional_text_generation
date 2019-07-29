@@ -4,13 +4,15 @@
    pip install pyro-ppl
 ** Running Experiments
    Copy data from my server data folder
-   - VAE
-     allennlp train experiments/vae.jsonnet -s models/dialog_vae --include-package src
-   - GAN (run after VAE)
+   - DAE
+     allennlp train experiments/dae.jsonnet -s models/dialog_vae --include-package src
+   - GAN (run after DAE)
      allennlp train experiments/dialog_gen.jsonnet -s models/dialog_gan_mse --include-package src
+    - Sequence2Sequence
+      python src/models/s2s.py (set `attention` variable enable/disable attention)
 ** Important Code
    - experiments
-     - vae.jsonnet (Configuration for VAE)
+     - dae.jsonnet (Configuration for VAE)
      - dialog_gen.jsonnet (Configuration for GAN with MSE)
    - src
      - data
@@ -18,14 +20,16 @@
        - iterator.py (Special iterator for GAN)
      - modules
        - encoders
-         - variational_encoder.py (Variational Encoder for VAE)
+         - deterministic_encoder.py (Deterministic Encoder for DAE)
        - decoders
          - decoder.py (Decoder base class)
-         - variational_decoder.py (Variational Decoder for VAE)
+         - variational_decoder.py (Variational Decoder for VAE/DAE)
        - metrcs.py (LMPPL and NLTKSentenceBLEU)
        - annealer.py (Different Annealing Schedules)
      - models
        - vae.py (Variational Autoencoder, SampleGenerator)
+       - dae.py (Deterministic Autoencoder, SampleGenerator)
+       - s2s.py (SimpleSeq2Seq, SampleGenerator)
        - dialog_generator.py (Generator Module for GAN)
        - dialog_discriminator.py (Discriminator Module for GAN)
        - dialog_gan.py (Dialog Gan, GanOptimizer and SampleGenerator)

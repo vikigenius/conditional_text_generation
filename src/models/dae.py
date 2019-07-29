@@ -10,12 +10,10 @@ from overrides import overrides
 from allennlp.common.util import START_SYMBOL, END_SYMBOL
 from allennlp.data import Vocabulary
 from allennlp.models.model import Model
-from allennlp.nn import InitializerApplicator
 from allennlp.training.metrics import BLEU, Average
 from allennlp.training.callbacks import Callback, Events, handle_event
 from allennlp.training import CallbackTrainer
 from pyro.distributions.torch import Normal
-from torch.distributions.kl import kl_divergence
 from src.modules.annealer import LossWeight
 from src.modules.encoders.deterministic_encoder import DeterministicEncoder
 from src.modules.decoders.decoder import Decoder
@@ -40,16 +38,11 @@ class DAE(Model):
     latent_dim : ``int``, required
         The dimention of the latent, z vector. This is not necessarily the same size as the encoder
         output dim
-    initializer : ``InitializerApplicator``, optional (default=``InitializerApplicator()``)
-        Used to initialize the model parameters.
     """
     def __init__(self,
                  vocab: Vocabulary,
                  deterministic_encoder: DeterministicEncoder,
-                 decoder: Decoder,
-                 kl_weight: LossWeight,
-                 temperature: float = 1.0,
-                 initializer: InitializerApplicator = InitializerApplicator()) -> None:
+                 decoder: Decoder) -> None:
         super(DAE, self).__init__(vocab)
 
         self._encoder = deterministic_encoder
@@ -63,12 +56,6 @@ class DAE(Model):
         self._end_index = self.vocab.get_token_index(END_SYMBOL)
         self._pad_index = self.vocab.get_token_index(self.vocab._padding_token)  # pylint: disable=protected-access
         self._bleu = BLEU(exclude_indices={self._pad_index, self._end_index, self._start_index})
-
-        self._kl_metric = Average()
-        self.kl_weight = kl_weight
-
-        self._temperature = temperature
-        initializer(self)
 
     @overrides
     def forward(self,  # type: ignore
@@ -104,8 +91,6 @@ class DAE(Model):
         all_metrics: Dict[str, float] = {}
         if self._bleu and not self.training:
             all_metrics.update(self._bleu.get_metric(reset=reset))
-
-        all_metrics.update({'kl': float(self._kl_metric.get_metric(reset=reset))})
         return all_metrics
 
     def generate(self, latent: torch.Tensor):

@@ -125,11 +125,11 @@ class DialogGan(Model):
         elif stage == "generator":
             output = self.generator(dialog_dict['query_latent'], self.discriminator)
             predicted_response = output["predicted_response"]
-            mse = F.mse_loss(predicted_response, dialog_dict['response_latent'])
+            # mse = F.mse_loss(predicted_response, dialog_dict['response_latent'])
             self._gen_metrics['gce'](output['loss'])
             output["loss"] += mse*self._mse_weight
-            self._gen_metrics['_gl'](output['loss'])
-            self._gen_metrics['_gmse'](mse)
+            # self._gen_metrics['_gl'](output['loss'])
+            # self._gen_metrics['_gmse'](mse)
             if not self.training:
                 batch_size = predicted_response.size(0)
                 response_list = [predicted_response]

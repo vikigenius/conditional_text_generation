@@ -5,7 +5,6 @@ from typing import Dict, Optional
 from overrides import overrides
 from pyro.distributions.torch import Normal
 from allennlp.models.model import Model
-from allennlp.nn.initializers import InitializerApplicator
 from allennlp.training.metrics import BooleanAccuracy
 from allennlp.nn.activations import Activation
 from src.modules.encoders.deterministic_encoder import DeterministicEncoder
@@ -15,8 +14,7 @@ from src.modules.encoders.deterministic_encoder import DeterministicEncoder
 class DialogGenerator(Model):
     def __init__(self,
                  latent_dim: int,
-                 activation: Activation = LeakyReLU(0.2),
-                 initializer: InitializerApplicator = None):
+                 activation: Activation = LeakyReLU(0.2)):
         super().__init__(None)
         self._latent_mapper = Sequential(
             Linear(latent_dim, 2*latent_dim), BatchNorm1d(2*latent_dim), activation,
