@@ -4,10 +4,10 @@
    pip install pyro-ppl
 ** Running Experiments
    Copy data from my server data folder
-   - VAE
-     allennlp train experiments/vae.jsonnet -s models/dialog_vae --include-package src
-   - GAN (run after VAE)
-     allennlp train experiments/dialog_gen.jsonnet -s models/dialog_gan_mse --include-package src
+   - VAE\\
+     ~allennlp train -s models/dialog_vae --include-package src experiments/vae.jsonnet~
+   - GAN (run after VAE)\\
+     ~allennlp train -s models/dialog_gan_mse --include-package src experiments/dialog_gen.jsonnet~
 ** Important Code
    - experiments
      - vae.jsonnet (Configuration for VAE)
