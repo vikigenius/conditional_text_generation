@@ -13,8 +13,8 @@ local GRAD_NORM = 5;
 local SUMMARY_INTERVAL = 10;
 local GEN_OPTIMIZER = "adam";
 local DISC_OPTIMIZER = "adam";
-local DISC_LEARNING_RATE = 0.00001;
-local GEN_LEARNING_RATE = 0.001;
+local DISC_LEARNING_RATE = 0.005;
+local GEN_LEARNING_RATE = 0.008;
 
 {
   "random_seed": SEED,
