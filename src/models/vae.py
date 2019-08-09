@@ -4,6 +4,7 @@ from typing import Dict
 import numpy
 import torch
 import logging
+import allennlp.nn.util as nn_util
 
 from overrides import overrides
 
@@ -121,8 +122,9 @@ class VAE(Model):
 
     def generate(self, num_to_sample: int = 1):
         cuda_device = self._get_prediction_device()
-        prior = Normal(torch.zeros((num_to_sample, self._latent_dim), device=cuda_device),
-                       torch.ones((num_to_sample, self._latent_dim), device=cuda_device))
+        prior_mean = nn_util.move_to_device(torch.zeros((num_to_sample, self._latent_dim)), cuda_device)
+        prior_stddev = torch.ones_like(prior_mean)
+        prior = Normal(prior_mean, prior_stddev)
         latent = prior.sample()
         generated = self._decoder.generate(latent)
 
