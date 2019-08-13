@@ -19,12 +19,7 @@ class DialogGenerator(Model):
                  temperature: int = 1.0,
                  initializer: InitializerApplicator = None):
         super().__init__(None)
-        self._mean_mapper = Sequential(
-            Linear(latent_dim, 2*latent_dim), BatchNorm1d(2*latent_dim), activation,
-            Linear(2*latent_dim, 2*latent_dim), BatchNorm1d(2*latent_dim), activation,
-            Linear(2*latent_dim, latent_dim)
-        )
-        self._logvar_mapper = Sequential(
+        self._latent_mapper = Sequential(
             Linear(latent_dim, 2*latent_dim), BatchNorm1d(2*latent_dim), activation,
             Linear(2*latent_dim, 2*latent_dim), BatchNorm1d(2*latent_dim), activation,
             Linear(2*latent_dim, latent_dim)
@@ -47,11 +42,8 @@ class DialogGenerator(Model):
             temperature = 1.0
         else:
             temperature = self._temperature
-        pred_mean = self._mean_mapper(query_mean)
-        pred_logvar = self._logvar_mapper(query_logvar)
-        pred_posterior = Normal(pred_mean, 0.5*pred_logvar.exp())
         query_latent = GaussianEncoder.reparametrize(query_prior, query_posterior, temperature)
-        pred_latent = GaussianEncoder.reparametrize(query_prior, pred_posterior, temperature)
+        pred_latent = self._latent_mapper(query_latent)
         output_dict = {}
         pred_dialog = torch.cat((query_latent, pred_latent), dim=-1)
         if discriminator is not None:
