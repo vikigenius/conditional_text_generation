@@ -49,6 +49,7 @@ def main():
     # attention = LinearAttention(HIDDEN_DIM, HIDDEN_DIM, activation=Activation.by_name('tanh')())
     # attention = BilinearAttention(HIDDEN_DIM, HIDDEN_DIM)
     attention = DotProductAttention()
+    # attention = None
 
     max_decoding_steps = 30
     model = SimpleSeq2Seq(vocab, source_embedder, encoder, max_decoding_steps,
@@ -57,7 +58,7 @@ def main():
                           attention=attention,
                           beam_size=3,
                           use_bleu=True).to('cuda:0')
-    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+    optimizer = optim.Adam(model.parameters(), lr=1e-4)
     iterator = BucketIterator(batch_size=32, sorting_keys=[("source_tokens", "num_tokens")])
 
     iterator.index_with(vocab)
@@ -77,11 +78,12 @@ def main():
         trainer.train()
 
         predictor = SimpleSeq2SeqPredictor(model, reader)
-
-        for instance in itertools.islice(validation_dataset, 2):
-            print('I:', ' '.join([t.text for t in instance.fields['source_tokens'].tokens]))
-            print('A:', ' '.join([t.text for t in instance.fields['target_tokens'].tokens]))
-            print('G:', ' '.join(predictor.predict_instance(instance)['predicted_tokens']))
+        all_sents = []
+        for instance in itertools.islice(validation_dataset, len(validation_dataset)):
+            sent = ' '.join(predictor.predict_instance(instance)['predicted_tokens'])
+            all_sents.append(sent)
+        with open('reports/outputs/s2s/generated_sentences_{}.txt'.format(i), 'w') as f:
+            f.write('\n'.join(all_sents))
 
 
 if __name__ == '__main__':
