@@ -197,8 +197,8 @@ class DialogGan(Model):
                 # Collect indices till the first end_symbol
                 if self._end_index in indices:
                     indices = indices[:indices.index(self._end_index)]
-                    predicted_tokens = [self.vocab.get_token_from_index(x) for x in indices]
-                    row_predicted_sentence.append(' '.join(predicted_tokens[1:]))
+                predicted_tokens = [self.vocab.get_token_from_index(x) for x in indices]
+                row_predicted_sentence.append(' '.join(predicted_tokens[1:]))
             all_predicted_sentences.append(row_predicted_sentence)
         output_dict["predicted_sentences"] = all_predicted_sentences
         return output_dict
