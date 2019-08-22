@@ -19,6 +19,7 @@ from src.modules.encoders import VariationalEncoder
 from src.modules.decoders import VariationalDecoder
 from src.modules.metrics import NLTKSentenceBLEU
 from nltk.translate.bleu_score import SmoothingFunction
+from torch.distributions import Normal
 
 
 logger = logging.getLogger(__name__)
@@ -141,16 +142,16 @@ class DialogGan(Model):
             self._gen_metrics['_mean'](predicted_response.mean())
             self._gen_metrics['_stdev'](predicted_response.std())
             if not self.training:
+                expanded_prior = Normal(dialog_dict['query_prior'].mean.repeat(self._num_responses, 1),
+                                        dialog_dict['query_prior'].stddev.repeat(self._num_responses, 1))
+                expanded_posterior = Normal(dialog_dict['query_posterior'].mean.repeat(self._num_responses, 1),
+                                            dialog_dict['query_posterior'].stddev.repeat(self._num_responses, 1))
                 batch_size = predicted_response.size(0)
-                response_list = [predicted_response]
-                with torch.no_grad():
-                    for rno in range(self._num_responses - 1):
-                        response_latent = self.generator(dialog_dict['query_prior'],
-                                                         dialog_dict['query_posterior'])["predicted_response"]
-                        response_list.append(response_latent)
-                responses = torch.cat(response_list, dim=0)
+                responses = self.generator(expanded_prior, expanded_posterior)["predicted_response"]
                 decoder_dict = self._decoder.generate(responses)
-                predictions = decoder_dict["predictions"].view(batch_size, self._num_responses, -1)
+
+                # Be Careful with the permutation
+                predictions = decoder_dict["predictions"].view(self._num_responses, batch_size, -1).permute(1, 0, 2)
                 output.update({"predictions": predictions})
                 if target_tokens:
                     self.s_bleu4(predictions, target_tokens["tokens"])
