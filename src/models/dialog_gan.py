@@ -285,7 +285,7 @@ class DialogSampleGen(Callback):
         self.num_samples = num_samples
         self.num_replies = num_replies
 
-    def _display_dialog(self, decoder, instance, output_dict):
+    def _display_dialog(self, instance, output_dict):
         query_tokens = [str(token) for token in instance['source_tokens']]
         response_tokens = [str(token) for token in instance['target_tokens']]
         predicted_sentences = output_dict["predicted_sentences"]
@@ -301,4 +301,4 @@ class DialogSampleGen(Callback):
         sample_instances = random.sample(self.instances, self.num_samples)
         output_dicts = trainer.model.forward_on_instances(sample_instances)
         for instance, output_dict in zip(sample_instances, output_dicts):
-            self._display_dialog(trainer.model.decode, instance, output_dict)
+            self._display_dialog(instance, output_dict)

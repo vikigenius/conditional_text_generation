@@ -1,29 +1,30 @@
-// jsonnet allows local variables like this
 local SEED = 0;
 local READER = "autoencoder";
 local CUDA = 0;
 
 local EMBEDDING_DIM = 30;
-local HIDDEN_DIM = 24;
-local LATENT_DIM = 12;
-local BATCH_SIZE = 2;
+local HIDDEN_DIM = 12;
+local LATENT_DIM = 28;
+local BATCH_SIZE = 4;
+local NUM_LAYERS = 1;
 local BIDIRECTIONAL = true;
 
-local NUM_EPOCHS = 1;
+local NUM_EPOCHS = 5;
+local PATIENCE = 3;
 local SUMMARY_INTERVAL = 10;
-local GRAD_CLIPPING = 5;
-local GRAD_NORM = 5;
+local GRAD_NORM = 5.0;
 local SHOULD_LOG_PARAMETER_STATISTICS = false;
 local SHOULD_LOG_LEARNING_RATE = true;
 local OPTIMIZER = "adam";
 local LEARNING_RATE = 0.001;
 local INIT_UNIFORM_RANGE_AROUND_ZERO = 0.1;
 
-local ANNEAL_MIN_WEIGHT = 0.0;
-local ANNEAL_MAX_WEIGHT = 0.5;
-local ANNEAL_WARMUP = 0;
-local ANNEAL_NUM_ITER_TO_MAX = 4;
-local ANNEAL_SLOPE = 0.5;
+local KL_WEIGHT = {
+  "type": "tanh_annealed",
+  "slope": 1/1000,
+  "margin": 4500,
+  "early_stop_iter": 5000,
+};
 
 {
   "random_seed": SEED,
@@ -51,6 +52,7 @@ local ANNEAL_SLOPE = 0.5;
         "type": "lstm",
         "input_size": EMBEDDING_DIM,
         "hidden_size": HIDDEN_DIM,
+        'num_layers': NUM_LAYERS,
         "bidirectional": BIDIRECTIONAL,
       },
       "latent_dim": LATENT_DIM,
@@ -69,18 +71,12 @@ local ANNEAL_SLOPE = 0.5;
       "rnn": {
         "type": "lstm",
         "input_size": EMBEDDING_DIM + LATENT_DIM,
+        'num_layers': NUM_LAYERS,
         "hidden_size": HIDDEN_DIM,
       },
       "latent_dim": LATENT_DIM
     },
-    "kl_weight": {
-      "type": "sigmoid_annealed",
-      "min_weight": ANNEAL_MIN_WEIGHT,
-      "max_weight": ANNEAL_MAX_WEIGHT,
-      "warmup": ANNEAL_WARMUP,
-      "num_iter_to_max": ANNEAL_NUM_ITER_TO_MAX,
-      "slope": ANNEAL_SLOPE,
-    },
+    "kl_weight": KL_WEIGHT,
     "temperature": 1e-5,
     "initializer": [
       [".*", {"type": "uniform", "a": -INIT_UNIFORM_RANGE_AROUND_ZERO, "b": INIT_UNIFORM_RANGE_AROUND_ZERO}]
@@ -92,17 +88,21 @@ local ANNEAL_SLOPE = 0.5;
     "sorting_keys": [["source_tokens", "num_tokens"]]
   },
   "trainer": {
+    "type": 'callback',
     "num_epochs": NUM_EPOCHS,
-    "patience": NUM_EPOCHS,
     "cuda_device": CUDA,
-    "summary_interval": SUMMARY_INTERVAL,
-    "grad_clipping": GRAD_CLIPPING,
-    "grad_norm": GRAD_NORM,
-    "should_log_parameter_statistics": SHOULD_LOG_PARAMETER_STATISTICS,
-    "should_log_learning_rate": SHOULD_LOG_LEARNING_RATE,
     "optimizer": {
       "type": OPTIMIZER,
       "lr": LEARNING_RATE
-    }
+    },
+    "callbacks": [
+      {"type": "gradient_norm_and_clip", "grad_norm": GRAD_NORM},
+      "checkpoint",
+      {"type": "track_metrics", "patience": PATIENCE, "validation_metric": "+BLEU"},
+      "validate",
+      "generate_samples",
+      "generate_sample_reconstruction",
+      "log_to_tensorboard"
+    ]
   }
 }

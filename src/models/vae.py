@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 
-from typing import Dict
+from typing import Dict, Iterable
 import numpy
+import random
 import torch
 import logging
 import allennlp.nn.util as nn_util
@@ -9,7 +10,7 @@ import allennlp.nn.util as nn_util
 from overrides import overrides
 
 from allennlp.common.util import START_SYMBOL, END_SYMBOL
-from allennlp.data import Vocabulary
+from allennlp.data import Vocabulary, Instance
 from allennlp.models.model import Model
 from allennlp.nn import InitializerApplicator
 from allennlp.training.metrics import BLEU, Average
@@ -93,13 +94,13 @@ class VAE(Model):
         batch_size = z.size(0)
         kld = kl_divergence(q_z, p_z).sum()/batch_size
         self._kl_metric(kld)
-        output_dict = {'posterior': q_z, 'z': z, 'predictions': source_tokens['tokens']}
+        output_dict = {'z': z, 'predictions': source_tokens['tokens']}
 
         if not target_tokens:
             return output_dict
 
         # Do Decoding
-        output_dict.update(self._decoder(target_tokens, z))
+        output_dict.update(self._decoder(z, target_tokens))
         rec_loss = output_dict['loss']
 
         kl_loss = kld*kl_weight
@@ -116,7 +117,7 @@ class VAE(Model):
         all_metrics: Dict[str, float] = {}
         if self._bleu and not self.training:
             all_metrics.update(self._bleu.get_metric(reset=reset))
-
+        all_metrics.update({'klw': float(self.kl_weight.get())})
         all_metrics.update({'kl': float(self._kl_metric.get_metric(reset=reset))})
         return all_metrics
 
@@ -163,7 +164,7 @@ class VAE(Model):
 @Callback.register("generate_samples")
 class SampleGen(Callback):
     """
-    This callback handles generating of sample dialog
+    This callback handles generating of samples from standart normal
     """
     def __init__(self,
                  num_samples: int = 1):
@@ -176,3 +177,32 @@ class SampleGen(Callback):
         gen_tokens = trainer.model.generate(self.num_samples)['predicted_tokens'][0]
         gen_sent = ' '.join(gen_tokens[1:])
         logger.info(gen_sent)
+
+
+@Callback.register("generate_sample_reconstruction")
+class SampleReconstruct(Callback):
+    """
+    This callback handles generating of sample reconstructions
+    """
+    def __init__(self,
+                 validation_data: Iterable[Instance],
+                 num_samples: int = 1):
+        self.num_samples = num_samples
+        self.instances = validation_data
+
+    def _display_reconstructions(self, instances: Instance,
+                                 output_dict: Dict[str, torch.Tensor]):
+        for idx, instance in enumerate(instances):
+            sentence_tokens = [str(token) for token in instance['source_tokens']]
+            reconstructed_tokens = output_dict[idx]['predicted_tokens']
+            sentence = ' '.join(sentence_tokens[1:-1])
+            reconstruction = ' '.join(reconstructed_tokens[1:])
+            logger.info(f'{sentence} <-> {reconstruction}')
+
+    @handle_event(Events.VALIDATE, priority=1000)
+    def generate_sample(self, trainer: 'CallbackTrainer'):
+        logger.info("generating sample reconstruction")
+        trainer.model.eval()
+        sample_instances = random.sample(self.instances, self.num_samples)
+        output_dicts = trainer.model.forward_on_instances(sample_instances)
+        self._display_reconstructions(sample_instances, output_dicts)

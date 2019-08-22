@@ -19,11 +19,12 @@ local OPTIMIZER = "adam";
 local LEARNING_RATE = 0.001;
 local INIT_UNIFORM_RANGE_AROUND_ZERO = 0.1;
 
-local ANNEAL_MIN_WEIGHT = 0.0;
-local ANNEAL_MAX_WEIGHT = 0.5;
-local ANNEAL_WARMUP = 500;
-local ANNEAL_NUM_ITER_TO_MAX = 3500;
-local ANNEAL_SLOPE = 0.5;
+local KL_WEIGHT = {
+  "type": "tanh_annealed",
+  "slope": 1/1000,
+  "margin": 4500,
+  "early_stop_iter": 2000,
+};
 
 {
   "random_seed": SEED,
@@ -75,14 +76,7 @@ local ANNEAL_SLOPE = 0.5;
       },
       "latent_dim": LATENT_DIM
     },
-    "kl_weight": {
-      "type": "sigmoid_annealed",
-      "min_weight": ANNEAL_MIN_WEIGHT,
-      "max_weight": ANNEAL_MAX_WEIGHT,
-      "warmup": ANNEAL_WARMUP,
-      "num_iter_to_max": ANNEAL_NUM_ITER_TO_MAX,
-      "slope": ANNEAL_SLOPE,
-    },
+    "kl_weight": KL_WEIGHT,
     "temperature": 1e-5,
     "initializer": [
       [".*", {"type": "uniform", "a": -INIT_UNIFORM_RANGE_AROUND_ZERO, "b": INIT_UNIFORM_RANGE_AROUND_ZERO}]
@@ -107,6 +101,7 @@ local ANNEAL_SLOPE = 0.5;
       {"type": "track_metrics", "patience": PATIENCE, "validation_metric": "+BLEU"},
       "validate",
       "generate_samples",
+      "generate_sample_reconstruction",
       "log_to_tensorboard"
     ]
   }

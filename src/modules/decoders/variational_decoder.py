@@ -12,6 +12,9 @@ from allennlp.nn.util import get_text_field_mask, sequence_cross_entropy_with_lo
 from src.modules.decoders.decoder import Decoder
 
 
+DecoderState = Tuple[torch.Tensor, torch.Tensor]
+
+
 @Decoder.register("variational_decoder")
 class VariationalDecoder(Decoder):
     """
@@ -57,16 +60,34 @@ class VariationalDecoder(Decoder):
         self._end_index = self.vocab.get_token_index(END_SYMBOL)
 
     def forward(self,  # type: ignore
-                target_tokens: Dict[str, torch.LongTensor],
-                latent: torch.Tensor) -> Dict[str, torch.Tensor]:
+                latent: torch.Tensor,
+                target_tokens: Dict[str, torch.LongTensor] = None) -> Dict[str, torch.Tensor]:
         # pylint: disable=arguments-differ
         """
         Make a forward pass of the decoder, given the latent vector and the sent as references.
         Notice explanation in simple_seq2seq.py for creating relavant targets and mask
         """
-        target_mask = get_text_field_mask(target_tokens)
-        relevant_targets = {"tokens": target_tokens["tokens"][:, :-1]}
-        relevant_mask = target_mask[:, :-1]
+        if self.training and target_tokens is not None:
+            target_mask = get_text_field_mask(target_tokens)
+            relevant_targets = {"tokens": target_tokens["tokens"][:, :-1]}
+            relevant_mask = target_mask[:, :-1]
+            embeddings, state = self._prepare_decoder(latent, relevant_targets)
+            logits = self._run_decoder(embeddings, relevant_mask, state, latent)
+
+            class_probabilities = F.softmax(logits, 2)
+            _, best_predictions = torch.max(class_probabilities, 2)
+
+            loss = self._get_reconstruction_loss(logits, target_tokens['tokens'], target_mask)
+            output_dict = {'logits': logits, 'predictions': best_predictions, 'loss': loss}
+        else:
+            if target_tokens is not None:
+                output_dict = self.generate(latent, target_tokens, max_len=target_tokens['tokens'].size(1))
+            else:
+                output_dict = self.generate(latent, target_tokens)
+        return output_dict
+
+    def _prepare_decoder(self, latent: torch.Tensor,
+                         relevant_targets: torch.Tensor) -> Tuple[torch.Tensor, DecoderState]:
         embeddings = self._target_embedder(relevant_targets)
         embeddings = self._emb_dropout(embeddings)
         h0 = embeddings.new_zeros(
@@ -74,22 +95,15 @@ class VariationalDecoder(Decoder):
         c0 = embeddings.new_zeros(
             self.dec_num_layers, embeddings.size(0), self.dec_hidden)  # pylint: disable=invalid-name
         h0[-1] = self._latent_to_dec_hidden(latent)
-        logits = self._run_decoder(embeddings, relevant_mask, (h0, c0), latent)
-        class_probabilities = F.softmax(logits, 2)
-        _, best_predictions = torch.max(class_probabilities, 2)
-
-        loss = self._get_reconstruction_loss(logits, target_tokens['tokens'], target_mask)
-
-        return {"logits": logits, "predictions": best_predictions, 'loss': loss}
+        state = (h0, c0)
+        return embeddings, state
 
     def _run_decoder(self,
-                     embeddings: torch.Tensor,
-                     relevant_mask: torch.LongTensor,
-                     hidden: Tuple[torch.Tensor, torch.Tensor],
-                     latent: torch.Tensor) -> torch.Tensor:
-        expended_latent = latent.unsqueeze(1).expand(embeddings.size(0), embeddings.size(1), latent.size(1))
-        dec_input = torch.cat([embeddings, expended_latent], 2)
-        decoder_out = self.rnn(dec_input, relevant_mask, hidden)
+                     embeddings: torch.Tensor, relevant_mask: torch.LongTensor,
+                     state: DecoderState, latent: torch.Tensor) -> torch.Tensor:
+        expanded_latent = latent.unsqueeze(1).expand(embeddings.size(0), embeddings.size(1), latent.size(1))
+        dec_input = torch.cat([embeddings, expanded_latent], 2)
+        decoder_out = self.rnn(dec_input, relevant_mask, state)
         decoder_out = self._dec_dropout(decoder_out.contiguous().view(embeddings.size(0)*embeddings.size(1), -1))
         logits = self._dec_linear(decoder_out)
         logits = logits.view(embeddings.size(0), embeddings.size(1), -1)
@@ -108,7 +122,8 @@ class VariationalDecoder(Decoder):
         reconstruction_loss = (reconstruction_loss_per_token * (relevant_mask.sum(1).float() + 1e-13)).mean()
         return reconstruction_loss
 
-    def generate(self, latent: torch.Tensor, reset_states=True, max_len: int = 30) -> Dict[str, torch.Tensor]:
+    def generate(self, latent: torch.Tensor, target_tokens: Dict[str, torch.LongTensor] = None,
+                 reset_states=True, max_len: int = 30) -> Dict[str, torch.Tensor]:
         batch_size, _ = latent.size()
         if reset_states:
             self.rnn.reset_states()
@@ -123,6 +138,7 @@ class VariationalDecoder(Decoder):
         restoration_indices = restoration_indices.to(h0.device)
         self.rnn._update_states((h0, c0), restoration_indices)  # pylint: disable=protected-access
         generations = [last_genereation]
+        all_logits = []
         for _ in range(max_len):
             embeddings = self._target_embedder({"tokens": last_genereation})
             mask = get_text_field_mask({"tokens": last_genereation})
@@ -130,6 +146,14 @@ class VariationalDecoder(Decoder):
             class_probabilities = F.softmax(logits, 2)
             _, last_genereation = torch.max(class_probabilities, 2)
             generations.append(last_genereation)
+            all_logits.append(logits)
+
+        all_logits = torch.cat(all_logits[:-1], 1)
         generations = torch.cat(generations, 1)
         self.rnn.stateful = False
-        return {"logits": logits, "predictions": generations, "latent": latent}
+
+        output_dict = {"logits": all_logits, "predictions": generations}
+        if target_tokens is not None:
+            target_mask = get_text_field_mask(target_tokens)
+            output_dict['loss'] = self._get_reconstruction_loss(all_logits, target_tokens['tokens'], target_mask)
+        return output_dict
