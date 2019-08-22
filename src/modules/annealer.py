@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-
-import torch
+import numpy as np
+import sys
 from allennlp.common import Registrable
 
 
@@ -34,7 +34,8 @@ class ConstantWeight(LossWeight):
 
 
 class AnnealedWeight(LossWeight):
-    def __init__(self, min_weight: float, max_weight: float, warmup: int, num_iter_to_max: int) -> None:
+    def __init__(self, min_weight: float = 0.0, max_weight: float = 1.0,
+                 warmup: int = 0, early_stop_iter: int = sys.maxsize) -> None:
         """
         This class is an abstract class for annealing loss weighters.
         """
@@ -43,13 +44,17 @@ class AnnealedWeight(LossWeight):
         self.min_weight = float(min_weight)
         self.max_weight = float(max_weight)
         self.warmup = warmup
-        self.num_iter_to_max = num_iter_to_max
+        self.early_stop_iter = early_stop_iter
 
     def step(self):
-        self._take_step()
+        weight = self._get_weight() if self.iteration > self.warmup else 0.0
+        if self.iteration < self.early_stop_iter:
+            self._weight = weight
+        self._weight = min(self._weight, self.max_weight)
+        self._weight = max(self._weight, self.min_weight)
         self.iteration += 1
 
-    def _take_step(self):
+    def _get_weight(self):
         raise NotImplementedError
 
 
@@ -58,31 +63,28 @@ class LinearAnnealedWeight(AnnealedWeight):
     """
     This class anneals weights linearly.
     """
-    def _take_step(self):
-        if self.iteration < self.warmup:
-            self._weight = self.min_weight
-        elif self.num_iter_to_max is not None and self.iteration > self.num_iter_to_max:
-            self._weight = self.max_weight
-        else:
-            offset = (self.max_weight-self.min_weight)*(self.iteration-self.warmup)/(self.num_iter_to_max-self.warmup)
-            self._weight = self.min_weight + offset
-
-
-@LossWeight.register("sigmoid_annealed")
-class SigmoidAnnealedWeight(AnnealedWeight):
-    """
-    This class anneals weights in a sigmoid fashion.
-    """
-    def __init__(self, min_weight: float,
-                 max_weight: float,
-                 warmup: int,
-                 num_iter_to_max: int,
-                 slope: float) -> None:
-        super().__init__(min_weight, max_weight, warmup, num_iter_to_max)
+    def __init__(self, slope: float, intercept: float, min_weight: float = 0.0,
+                 max_weight: float = 1.0,
+                 warmup: int = 0, early_stop_iter: int = sys.maxsize) -> None:
+        super().__init__(min_weight, max_weight, warmup, early_stop_iter)
         self.slope = slope
+        self.intercept = intercept
 
-    def _take_step(self):
-        shifted_max = self.max_weight - self.min_weight
-        middle_point = (self.warmup + self.num_iter_to_max)/2
-        res = shifted_max * torch.sigmoid(torch.Tensor([self.slope*(self.iteration-middle_point)])) + self.min_weight
-        self._weight = round(res.item(), 2)
+    def _get_weight(self):
+        return self.slope*self.iteration + self.intercept
+
+
+@LossWeight.register("tanh_annealed")
+class TanhAnnealedWeight(AnnealedWeight):
+    """
+    This class anneals weights linearly.
+    """
+    def __init__(self, slope: float, margin: float, min_weight: float = 0.0,
+                 max_weight: float = 1.0,
+                 warmup: int = 0, early_stop_iter: int = sys.maxsize) -> None:
+        super().__init__(min_weight, max_weight, warmup, early_stop_iter)
+        self.slope = slope
+        self.margin = margin
+
+    def _get_weight(self):
+        return 0.5*(np.tanh(self.slope*(self.iteration - self.margin)) + 1)
