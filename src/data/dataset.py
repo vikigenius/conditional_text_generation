@@ -5,6 +5,8 @@ import logging
 from overrides import overrides
 from typing import Dict
 from allennlp.common.checks import ConfigurationError
+from allennlp.data.tokenizers import WordTokenizer
+from allennlp.data.token_indexers import SingleIdTokenIndexer
 from allennlp.data.dataset_readers.dataset_reader import DatasetReader
 from allennlp.data.dataset_readers.seq2seq import Seq2SeqDatasetReader
 from allennlp.data.instance import Instance
@@ -23,6 +25,24 @@ class AutoencoderDatasetReader(Seq2SeqDatasetReader):
     ``AutoencoderDatasetReader`` class inherits Seq2SeqDatasetReader as the only
     difference is when dealing with autoencoding tasks i.e., the target equals the source.
     """
+    def __init__(self,
+                 source_tokenizer: Tokenizer = None,
+                 target_tokenizer: Tokenizer = None,
+                 source_token_indexers: Dict[str, TokenIndexer] = None,
+                 target_token_indexers: Dict[str, TokenIndexer] = None,
+                 source_add_start_token: bool = True,
+                 delimiter: str = "\t",
+                 max_seq_len: int = 30,
+                 lazy: bool = False) -> None:
+        super().__init__(lazy)
+        self._source_tokenizer = source_tokenizer or WordTokenizer()
+        self._target_tokenizer = target_tokenizer or self._source_tokenizer
+        self._source_token_indexers = source_token_indexers or {"tokens": SingleIdTokenIndexer()}
+        self._target_token_indexers = target_token_indexers or self._source_token_indexers
+        self._source_add_start_token = source_add_start_token
+        self._delimiter = delimiter
+        self._max_seq_len = max_seq_len
+
     @overrides
     def _read(self, file_path):
         with open(cached_path(file_path), "r") as data_file:
@@ -39,6 +59,7 @@ class AutoencoderDatasetReader(Seq2SeqDatasetReader):
     def text_to_instance(self, input_string: str) -> Instance:  # type: ignore
         # pylint: disable=arguments-differ
         tokenized_string = self._source_tokenizer.tokenize(input_string)
+        tokenized_string = tokenized_string[:self._max_seq_len - 2]
         tokenized_source = tokenized_string.copy()
         tokenized_target = tokenized_string.copy()
         if self._source_add_start_token:

@@ -161,6 +161,16 @@ class VAE(Model):
         return output_dict
 
 
+@Callback.register("reset_kl")
+class ResetKL(Callback):
+    """
+    This callback handles generating of samples from standart normal
+    """
+    @handle_event(Events.BATCH_END)
+    def reset(self, trainer: 'CallbackTrainer'):
+        trainer.model.get_metrics(reset=True)
+
+
 @Callback.register("generate_samples")
 class SampleGen(Callback):
     """

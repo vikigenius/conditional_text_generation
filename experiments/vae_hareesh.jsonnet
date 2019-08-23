@@ -3,9 +3,9 @@ local READER = "autoencoder";
 local CUDA = 0;
 
 local EMBEDDING_DIM = 300;
-local HIDDEN_DIM = 512;
-local LATENT_DIM = 128;
-local BATCH_SIZE = 128;
+local HIDDEN_DIM = 100;
+local LATENT_DIM = 100;
+local BATCH_SIZE = 100;
 local NUM_LAYERS = 1;
 local BIDIRECTIONAL = true;
 
@@ -16,14 +16,14 @@ local GRAD_NORM = 5.0;
 local SHOULD_LOG_PARAMETER_STATISTICS = false;
 local SHOULD_LOG_LEARNING_RATE = true;
 local OPTIMIZER = "adam";
-local LEARNING_RATE = 0.001;
+local LEARNING_RATE = 0.005;
 local INIT_UNIFORM_RANGE_AROUND_ZERO = 0.1;
 
 local KL_WEIGHT = {
-  "type": "sigmoid_annealed",
-  "slope": 0.0025,
-  "margin": 2500,
-  "early_stop_iter": 1400,
+  "type": "tanh_annealed",
+  "slope": 1/1000,
+  "margin": 8500,
+  "early_stop_iter": 6000,
 };
 
 {
@@ -32,6 +32,10 @@ local KL_WEIGHT = {
   "pytorch_seed": SEED,
   "dataset_reader": {
     "type": READER
+  },
+  "vocabulary": {
+    "pretrained_files": {"tokens": "data/glove/glove.6B.300d.txt"},
+    "min_pretrained_embeddings": {"tokens": 30000}
   },
   "train_data_path": "data/interim/dialog/train_sentences.tsv",
   "validation_data_path": "data/interim/dialog/valid_sentences.tsv",
@@ -43,8 +47,10 @@ local KL_WEIGHT = {
         "token_embedders": {
           "tokens": {
             "type": "embedding",
+            "pretrained_file": "data/glove/glove.6B.300d.txt",
             "vocab_namespace": "tokens",
             "embedding_dim": EMBEDDING_DIM,
+            "trainable": false
           }
         }
       },
