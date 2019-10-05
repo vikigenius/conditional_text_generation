@@ -1,25 +1,21 @@
 #!/usr/bin/env python
+
 import numpy
 import torch
 import logging
-import random
-import torch.nn.functional as F
 from overrides import overrides
-from typing import List, Dict, Iterable
+from typing import List, Dict
+from allennlp.common import Params
 from allennlp.common.util import START_SYMBOL, END_SYMBOL
-from allennlp.common.params import Params
 from allennlp.models.model import Model
 from allennlp.data.vocabulary import Vocabulary
-from allennlp.data import Instance
-from allennlp.training.optimizers import Optimizer
-from allennlp.training.callbacks import Callback, Events, handle_event
 from allennlp.training.metrics import Average
-from allennlp.training import CallbackTrainer
+from allennlp.training.optimizers import Optimizer
+from nltk.translate.bleu_score import SmoothingFunction
 from src.modules.encoders import VariationalEncoder
 from src.modules.decoders import VariationalDecoder
 from src.modules.metrics import NLTKSentenceBLEU
-from nltk.translate.bleu_score import SmoothingFunction
-from torch.distributions import Normal
+from src.modules.callbacks.training import GanTrainingStage
 
 
 logger = logging.getLogger(__name__)
@@ -38,14 +34,15 @@ class DialogGan(Model):
                  decoder: VariationalDecoder,
                  generator: Model,
                  discriminator: Model,
-                 mse_weight: float = 2.0,
-                 temperature: float = 1.0,
+                 train_temperature: float = 1.0,
+                 inference_temperature: float = 1.0,
                  num_responses: int = 10) -> None:
         super().__init__(vocab)
         self._encoder = encoder
         self._decoder = decoder
-        self._mse_weight = 2.0
-        self._temperature = temperature
+        self.stage = GanTrainingStage.GENERATOR
+        self.train_temperature = train_temperature
+        self.inference_temperature = inference_temperature
         self._num_responses = num_responses
         self._start_index = self.vocab.get_token_index(START_SYMBOL)
         self._end_index = self.vocab.get_token_index(END_SYMBOL)
@@ -77,7 +74,6 @@ class DialogGan(Model):
         self._gen_metrics = {
             "_gl": Average(),
             "gce": Average(),
-            "_gmse": Average(),
             "_mean": Average(),
             "_stdev": Average()
         }
@@ -105,15 +101,14 @@ class DialogGan(Model):
 
     def forward(self,
                 source_tokens: Dict[str, torch.LongTensor],
-                target_tokens: Dict[str, torch.LongTensor],  # Needed only for validation BLEU
-                stage: List[str]):
+                target_tokens: Dict[str, torch.LongTensor] = None):
         if self.training:
-            stage = stage[0]
+            stage = self.stage
         else:
-            stage = "generator"
-        temperature = 1.0 if self.training else self._temperature
+            stage = GanTrainingStage.GENERATOR
+        temperature = self.train_temperature if self.training else self.inference_temperature
         dialog_dict = self.encode_dialog(self._encoder, source_tokens, target_tokens, temperature)
-        if stage == "discriminator_real":
+        if stage == GanTrainingStage.DISCRIMINATOR_REAL:
             dialog_latent = dialog_dict["dialog_latent"]
             batch_size = dialog_latent.size(0)
             device = dialog_latent.device
@@ -121,33 +116,25 @@ class DialogGan(Model):
             output = self.discriminator(dialog_latent, labels)
             self._disc_metrics['drl'](output['loss'])
             self._disc_metrics['dracc'](output['accuracy'])
-        elif stage == "discriminator_fake":
-            predicted_latent = self.generator(dialog_dict['query_prior'],
-                                              dialog_dict['query_posterior'])["predicted_dialog"]
+        elif stage == GanTrainingStage.DISCRIMINATOR_FAKE:
+            predicted_latent = self.generator(dialog_dict['query_latent'])["generation"]
+            predicted_dialog = torch.cat([dialog_dict['query_latent'], predicted_latent], dim=-1)
             batch_size = predicted_latent.size(0)
             device = predicted_latent.device
             labels = torch.zeros([batch_size, 1]).to(device)
-            output = self.discriminator(predicted_latent, labels)
+            output = self.discriminator(predicted_dialog, labels)
             self._disc_metrics['dfl'](output['loss'])
             self._disc_metrics['dfacc'](output['accuracy'])
-        elif stage == "generator":
-            response_mean = dialog_dict["response_posterior"].mean
-            output = self.generator(dialog_dict['query_prior'], dialog_dict['query_posterior'], self.discriminator)
-            predicted_response = output["predicted_response"]
-            mse = F.mse_loss(predicted_response, response_mean)
+        elif stage == GanTrainingStage.GENERATOR:
+            output = self.generator(dialog_dict['query_latent'], self.discriminator)
+            predicted_response = output["generation"]
             self._gen_metrics['gce'](output['loss'])
-            output["loss"] += mse*self._mse_weight
             self._gen_metrics['_gl'](output['loss'])
-            self._gen_metrics['_gmse'](mse)
             self._gen_metrics['_mean'](predicted_response.mean())
             self._gen_metrics['_stdev'](predicted_response.std())
             if not self.training:
-                expanded_prior = Normal(dialog_dict['query_prior'].mean.repeat(self._num_responses, 1),
-                                        dialog_dict['query_prior'].stddev.repeat(self._num_responses, 1))
-                expanded_posterior = Normal(dialog_dict['query_posterior'].mean.repeat(self._num_responses, 1),
-                                            dialog_dict['query_posterior'].stddev.repeat(self._num_responses, 1))
                 batch_size = predicted_response.size(0)
-                responses = self.generator(expanded_prior, expanded_posterior)["predicted_response"]
+                responses = self.generator(dialog_dict['query_latent'].repeat(self._num_responses, 1))["generation"]
                 decoder_dict = self._decoder.generate(responses)
 
                 # Be Careful with the permutation
@@ -157,7 +144,7 @@ class DialogGan(Model):
                     self.s_bleu4(predictions, target_tokens["tokens"])
                     self.n_bleu2(predictions, target_tokens["tokens"])
         else:
-            raise ValueError(f"Invalid stage: {stage}")
+            raise RuntimeError(f"Invalid stage: {stage}")
         return output
 
     @overrides
@@ -218,15 +205,13 @@ class GanOptimizer(torch.optim.Optimizer):
                  discriminator_optimizer: torch.optim.Optimizer) -> None:
         self.generator_optimizer = generator_optimizer
         self.discriminator_optimizer = discriminator_optimizer
-        self.stage = ""
+        self.stage = None
 
     def step(self, _closure=None) -> None:
-        if "discriminator" in self.stage:
-            self.discriminator_optimizer.step(_closure)
-        elif "generator" in self.stage:
+        if self.stage == GanTrainingStage.GENERATOR:
             self.generator_optimizer.step(_closure)
         else:
-            raise ValueError("unknown stage")
+            self.discriminator_optimizer.step(_closure)
 
     def state_dict(self):
         return {
@@ -257,49 +242,3 @@ class GanOptimizer(torch.optim.Optimizer):
                                                         params.pop("discriminator_optimizer"))
 
         return cls(generator_optimizer=generator_optimizer, discriminator_optimizer=discriminator_optimizer)
-
-
-@Callback.register("gan-callback")
-class TrainGan(Callback):
-    @handle_event(Events.BATCH_START)
-    def set_stage(self, trainer):
-        batch, = trainer.batch_group
-
-        # We should not have mixed batches:
-        if len(set(batch["stage"])) != 1:
-            raise ValueError("mixed batch")
-
-        stage = batch["stage"][0]
-        trainer.optimizer.stage = stage
-
-
-@Callback.register("generate_dialog_samples")
-class DialogSampleGen(Callback):
-    """
-    This callback handles generating of sample dialog
-    """
-    def __init__(self,
-                 validation_data: Iterable[Instance],
-                 num_replies: int = 1,
-                 num_samples: int = 1):
-        self.instances = validation_data
-        self.num_samples = num_samples
-        self.num_replies = num_replies
-
-    def _display_dialog(self, instance, output_dict):
-        query_tokens = [str(token) for token in instance['source_tokens']]
-        response_tokens = [str(token) for token in instance['target_tokens']]
-        predicted_sentences = output_dict["predicted_sentences"]
-        prediction = random.choice(predicted_sentences)
-        query = ' '.join(query_tokens[1:-1])
-        response = ' '.join(response_tokens[1:-1])
-        logger.info(f'{query} -> {prediction} <-> ####[{response}]####')
-
-    @handle_event(Events.VALIDATE, priority=1000)
-    def generate_sample(self, trainer: 'CallbackTrainer'):
-        logger.info("generating sample dialog")
-        trainer.model.eval()
-        sample_instances = random.sample(self.instances, self.num_samples)
-        output_dicts = trainer.model.forward_on_instances(sample_instances)
-        for instance, output_dict in zip(sample_instances, output_dicts):
-            self._display_dialog(instance, output_dict)

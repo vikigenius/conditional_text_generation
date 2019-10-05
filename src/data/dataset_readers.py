@@ -14,13 +14,13 @@ from allennlp.common.file_utils import cached_path
 from allennlp.data.tokenizers import Token, Tokenizer
 from allennlp.data.token_indexers import TokenIndexer
 from allennlp.common.util import START_SYMBOL, END_SYMBOL
-from allennlp.data.fields import TextField, LabelField, MetadataField
+from allennlp.data.fields import TextField, LabelField
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 @DatasetReader.register("autoencoder")
-class AutoencoderDatasetReader(Seq2SeqDatasetReader):
+class AutoencoderDatasetReader(DatasetReader):
     """
     ``AutoencoderDatasetReader`` class inherits Seq2SeqDatasetReader as the only
     difference is when dealing with autoencoding tasks i.e., the target equals the source.
@@ -106,58 +106,8 @@ class DialogClassifierDatasetReader(Seq2SeqDatasetReader):
         return Instance({"query_tokens": source_field, "response_tokens": target_field, "label": label_field})
 
 
-@DatasetReader.register('dialog-gan')
-class DialogGanDatasetReader(Seq2SeqDatasetReader):
-    """
-    Read a tsv file containing paired sequences, and create a dataset suitable for a
-    ``SimpleSeq2Seq`` model, or any model with a matching API.
-    Expected format for each input line: <source_sequence_string>\t<target_sequence_string>
-    The output of ``read`` is a list of ``Instance`` s with the fields:
-        source_tokens: ``TextField`` and
-        target_tokens: ``TextField``
-    `START_SYMBOL` and `END_SYMBOL` tokens are added to the source and target sequences.
-    Parameters
-    ----------
-    source_tokenizer : ``Tokenizer``, optional
-        Tokenizer to use to split the input sequences into words or other kinds of tokens. Defaults
-        to ``WordTokenizer()``.
-    target_tokenizer : ``Tokenizer``, optional
-        Tokenizer to use to split the output sequences (during training) into words or other kinds
-        of tokens. Defaults to ``source_tokenizer``.
-    source_token_indexers : ``Dict[str, TokenIndexer]``, optional
-        Indexers used to define input (source side) token representations. Defaults to
-        ``{"tokens": SingleIdTokenIndexer()}``.
-    target_token_indexers : ``Dict[str, TokenIndexer]``, optional
-        Indexers used to define output (target side) token representations. Defaults to
-        ``source_token_indexers``.
-    source_add_start_token : bool, (optional, default=True)
-        Whether or not to add `START_SYMBOL` to the beginning of the source sequence.
-    delimiter : str, (optional, default="\t")
-        Set delimiter for tsv/csv file.
-    batch_size: int, (optional, default=32)
-    """
-    def __init__(self,
-                 source_tokenizer: Tokenizer = None,
-                 target_tokenizer: Tokenizer = None,
-                 source_token_indexers: Dict[str, TokenIndexer] = None,
-                 target_token_indexers: Dict[str, TokenIndexer] = None,
-                 source_add_start_token: bool = True,
-                 delimiter: str = "\t",
-                 lazy: bool = False) -> None:
-        super().__init__(source_tokenizer, target_tokenizer,
-                         source_token_indexers, target_token_indexers,
-                         source_add_start_token, delimiter, lazy)
-        self.states = ["discriminator_real", "discriminator_fake", "generator"]
-        self.state = self._state_generator()
-
-    def _state_generator(self):
-        while True:
-            for state in self.states:
-                yield state
-
-    def _get_state(self):
-        return next(self.state)
-
+@DatasetReader.register('dialog')
+class DialogDatasetReader(Seq2SeqDatasetReader):
     @overrides
     def _read(self, file_path):
         with open(cached_path(file_path), "r") as data_file:
@@ -171,7 +121,6 @@ class DialogGanDatasetReader(Seq2SeqDatasetReader):
     @overrides
     def text_to_instance(self, source_string: str, target_string: str = None) -> Instance:  # type: ignore
         # pylint: disable=arguments-differ
-        stage_field = MetadataField(self._get_state())
         tokenized_source = self._source_tokenizer.tokenize(source_string)
         if self._source_add_start_token:
             tokenized_source.insert(0, Token(START_SYMBOL))
@@ -182,6 +131,6 @@ class DialogGanDatasetReader(Seq2SeqDatasetReader):
             tokenized_target.insert(0, Token(START_SYMBOL))
             tokenized_target.append(Token(END_SYMBOL))
             target_field = TextField(tokenized_target, self._target_token_indexers)
-            return Instance({"source_tokens": source_field, "target_tokens": target_field, "stage": stage_field})
+            return Instance({"source_tokens": source_field, "target_tokens": target_field})
         else:
             return Instance({'source_tokens': source_field})

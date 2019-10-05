@@ -1,11 +1,9 @@
 local SEED = 0;
 local CUDA = 0;
-local READER = "dialog-gan";
-local PREDICTOR = 'dialog-gen';
+local READER = "dialog";
 
 local LATENT_DIM = 128;
 local BATCH_SIZE = 32;
-local TEMPERATURE = 1e-5;
 local ACTIVATION = 'relu';
 
 local NUM_EPOCHS = 30;
@@ -45,28 +43,28 @@ local GEN_LEARNING_RATE = 0.001;
       },
     },
     "generator": {
-      "type": "dialog-generator",
-      "latent_dim": LATENT_DIM,
+      "type": "generator",
+      "input_dim": LATENT_DIM,
+      "output_dim": LATENT_DIM,
+      "hidden_dim": LATENT_DIM,
       'activation': ACTIVATION,
       "initializer": [
         [".*", {"type": "normal", "mean": 0, "std": 0.02}],
       ]
     },
     "discriminator": {
-      "type": "dialog-discriminator",
+      "type": "discriminator",
       "input_dim": 2*LATENT_DIM,
       "hidden_dim": LATENT_DIM,
       "initializer": [
         [".*", {"type": "normal", "mean": 0, "std": 0.02}],
       ]
     },
-    "temperature": TEMPERATURE,
   },
   "iterator": {
-    "type": "homogeneous_bucket",
+    "type": "bucket",
     "batch_size" : BATCH_SIZE,
     "sorting_keys": [["source_tokens", "num_tokens"]],
-    "partition_key": "stage"
   },
   "trainer": {
     "type": 'callback',
@@ -84,7 +82,7 @@ local GEN_LEARNING_RATE = 0.001;
       }
     },
     "callbacks": [
-      "gan-callback",
+      "gan_stage",
       "checkpoint",
       {"type": "track_metrics", "patience": PATIENCE, "validation_metric": "+_S_BLEU4F"},
       "validate",

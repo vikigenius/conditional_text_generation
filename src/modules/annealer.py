@@ -77,7 +77,7 @@ class LinearAnnealedWeight(AnnealedWeight):
 @LossWeight.register("tanh_annealed")
 class TanhAnnealedWeight(AnnealedWeight):
     """
-    This class anneals weights linearly.
+    This class anneals weights in a tanh fashion
     """
     def __init__(self, slope: float, margin: float, min_weight: float = 0.0,
                  max_weight: float = 1.0,
@@ -93,7 +93,7 @@ class TanhAnnealedWeight(AnnealedWeight):
 @LossWeight.register("sigmoid_annealed")
 class SigmoidAnnealedWeight(AnnealedWeight):
     """
-    This class anneals weights linearly.
+    This class anneals weights in a sigmoid.
     """
     def __init__(self, slope: float, margin: float, min_weight: float = 0.0,
                  max_weight: float = 1.0,

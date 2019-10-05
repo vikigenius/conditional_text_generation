@@ -100,8 +100,8 @@ local KL_WEIGHT = {
       "checkpoint",
       {"type": "track_metrics", "patience": PATIENCE, "validation_metric": "+BLEU"},
       "validate",
-      "generate_samples",
-      "generate_sample_reconstruction",
+      "prior_sample",
+      "reconstruct_samples",
       "log_to_tensorboard"
     ]
   }

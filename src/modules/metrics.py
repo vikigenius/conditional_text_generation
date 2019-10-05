@@ -122,7 +122,7 @@ class NLTKSentenceBLEU(Metric):
                     reference_tokens = [rtoken for rtoken in reference if rtoken not in self._exclude_indices]
                     try:
                         bleu_scores[bidx][hno][rno] = self.sentence_bleu([reference_tokens], hypothesis_tokens)
-                    except FloatingPointError:
+                    except ZeroDivisionError:
                         logger.warn('Division by Zeror error occured, setting bleu to zero')
         recall_bleu = bleu_scores.max(1).mean()
         precision_bleu = bleu_scores.max(2).mean()

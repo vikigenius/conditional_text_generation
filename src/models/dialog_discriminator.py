@@ -1,14 +1,15 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+
 import torch
 from typing import Dict
-from allennlp.models.model import Model
+from allennlp.models import Model
 from allennlp.nn.activations import Activation
 from allennlp.nn.initializers import InitializerApplicator
 from torch.nn import Linear, BCEWithLogitsLoss, Sequential, BatchNorm1d, LeakyReLU
 
 
-@Model.register('dialog-discriminator')
-class DialogDiscriminator(Model):
+@Model.register('discriminator')
+class Discriminator(Model):
     def __init__(self,
                  input_dim: int,
                  hidden_dim: int,
@@ -17,8 +18,8 @@ class DialogDiscriminator(Model):
         super().__init__(None)
         self._activation = activation
         self._classifier = Sequential(
-            Linear(input_dim, hidden_dim), BatchNorm1d(hidden_dim), activation,
-            Linear(hidden_dim, hidden_dim), BatchNorm1d(hidden_dim), activation,
+            Linear(input_dim, 2*hidden_dim), BatchNorm1d(2*hidden_dim), activation,
+            Linear(2*hidden_dim, hidden_dim), BatchNorm1d(hidden_dim), activation,
             Linear(hidden_dim, 1)
         )
         self._loss = BCEWithLogitsLoss()

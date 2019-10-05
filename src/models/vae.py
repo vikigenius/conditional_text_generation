@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 
-from typing import Dict, Iterable
+from typing import Dict, List
 import numpy
-import random
 import torch
 import logging
 import allennlp.nn.util as nn_util
@@ -10,12 +9,10 @@ import allennlp.nn.util as nn_util
 from overrides import overrides
 
 from allennlp.common.util import START_SYMBOL, END_SYMBOL
-from allennlp.data import Vocabulary, Instance
+from allennlp.data import Vocabulary
 from allennlp.models.model import Model
 from allennlp.nn import InitializerApplicator
 from allennlp.training.metrics import BLEU, Average
-from allennlp.training.callbacks import Callback, Events, handle_event
-from allennlp.training import CallbackTrainer
 from pyro.distributions.torch import Normal
 from torch.distributions.kl import kl_divergence
 from src.modules.annealer import LossWeight
@@ -131,21 +128,12 @@ class VAE(Model):
 
         return self.decode(generated)
 
-    @overrides
-    # simple_seq2seq's decode
-    def decode(self, output_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
-        """
-        Finalize predictions.
-        This method overrides ``Model.decode``, which gets called after ``Model.forward``, at test
-        time, to finalize predictions. The logic for the decoder part of the encoder-decoder lives
-        within the ``forward`` method.
-        This method trims the output predictions to the first end symbol, replaces indices with
-        corresponding tokens, and adds a field called ``predicted_tokens`` to the ``output_dict``.
-        """
-        predicted_indices = output_dict["predictions"]
+    def decode_predictions(self, predictions: torch.Tensor) -> List[str]:
+        predicted_indices = predictions
+
         if not isinstance(predicted_indices, numpy.ndarray):
             predicted_indices = predicted_indices.detach().cpu().numpy()
-        all_predicted_tokens = []
+        all_predicted_sentences = []
         for indices in predicted_indices:
             # Beam search gives us the top k results for each source sentence in the batch
             # but we just want the single best.
@@ -155,64 +143,25 @@ class VAE(Model):
             # Collect indices till the first end_symbol
             if self._end_index in indices:
                 indices = indices[:indices.index(self._end_index)]
+
+            # Collect indices after the first start symbol
+            if self._start_index in indices:
+                indices = indices[indices.index(self._start_index) + 1:]
+
             predicted_tokens = [self.vocab.get_token_from_index(x) for x in indices]
-            all_predicted_tokens.append(predicted_tokens)
-        output_dict["predicted_tokens"] = all_predicted_tokens
+            all_predicted_sentences.append(predicted_tokens)
+        return all_predicted_sentences
+
+    # simple_seq2seq's decode
+    @overrides
+    def decode(self, output_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+        """
+        Finalize predictions.
+        This method overrides ``Model.decode``, which gets called after ``Model.forward``, at test
+        time, to finalize predictions. The logic for the decoder part of the encoder-decoder lives
+        within the ``forward`` method.
+        This method trims the output predictions to the first end symbol, replaces indices with
+        corresponding tokens, and adds a field called ``predicted_tokens`` to the ``output_dict``.
+        """
+        output_dict["predicted_sentences"] = self.decode_predictions(output_dict['predictions'])
         return output_dict
-
-
-@Callback.register("reset_kl")
-class ResetKL(Callback):
-    """
-    This callback handles generating of samples from standart normal
-    """
-    @handle_event(Events.BATCH_END)
-    def reset(self, trainer: 'CallbackTrainer'):
-        trainer.model.get_metrics(reset=True)
-
-
-@Callback.register("generate_samples")
-class SampleGen(Callback):
-    """
-    This callback handles generating of samples from standart normal
-    """
-    def __init__(self,
-                 num_samples: int = 1):
-        self.num_samples = num_samples
-
-    @handle_event(Events.VALIDATE, priority=1000)
-    def generate_sample(self, trainer: 'CallbackTrainer'):
-        logger.info("generating sample dialog")
-        trainer.model.eval()
-        gen_tokens = trainer.model.generate(self.num_samples)['predicted_tokens'][0]
-        gen_sent = ' '.join(gen_tokens[1:])
-        logger.info(gen_sent)
-
-
-@Callback.register("generate_sample_reconstruction")
-class SampleReconstruct(Callback):
-    """
-    This callback handles generating of sample reconstructions
-    """
-    def __init__(self,
-                 validation_data: Iterable[Instance],
-                 num_samples: int = 1):
-        self.num_samples = num_samples
-        self.instances = validation_data
-
-    def _display_reconstructions(self, instances: Instance,
-                                 output_dict: Dict[str, torch.Tensor]):
-        for idx, instance in enumerate(instances):
-            sentence_tokens = [str(token) for token in instance['source_tokens']]
-            reconstructed_tokens = output_dict[idx]['predicted_tokens']
-            sentence = ' '.join(sentence_tokens[1:-1])
-            reconstruction = ' '.join(reconstructed_tokens[1:])
-            logger.info(f'{sentence} <-> {reconstruction}')
-
-    @handle_event(Events.VALIDATE, priority=1000)
-    def generate_sample(self, trainer: 'CallbackTrainer'):
-        logger.info("generating sample reconstruction")
-        trainer.model.eval()
-        sample_instances = random.sample(self.instances, self.num_samples)
-        output_dicts = trainer.model.forward_on_instances(sample_instances)
-        self._display_reconstructions(sample_instances, output_dicts)
