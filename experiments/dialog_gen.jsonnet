@@ -60,7 +60,7 @@ local GEN_LEARNING_RATE = 0.001;
         [".*", {"type": "normal", "mean": 0, "std": 0.02}],
       ]
     },
-    "temperature": TEMPERATURE,
+    "inference_temperature": TEMPERATURE,
   },
   "iterator": {
     "type": "homogeneous_bucket",
