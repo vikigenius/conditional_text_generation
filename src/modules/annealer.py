@@ -88,3 +88,19 @@ class TanhAnnealedWeight(AnnealedWeight):
 
     def _get_weight(self):
         return 0.5*(np.tanh(self.slope*(self.iteration - self.margin)) + 1)
+
+
+@LossWeight.register("sigmoid_annealed")
+class SigmoidAnnealedWeight(AnnealedWeight):
+    """
+    This class anneals weights in a sigmoid.
+    """
+    def __init__(self, slope: float, margin: float, min_weight: float = 0.0,
+                 max_weight: float = 1.0,
+                 warmup: int = 0, early_stop_iter: int = sys.maxsize) -> None:
+        super().__init__(min_weight, max_weight, warmup, early_stop_iter)
+        self.slope = slope
+        self.margin = margin
+
+    def _get_weight(self):
+        return 1/(1 + np.exp(-self.slope*(self.iteration - self.margin)))

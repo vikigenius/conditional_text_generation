@@ -39,13 +39,15 @@ class DialogGan(Model):
                  generator: Model,
                  discriminator: Model,
                  mse_weight: float = 2.0,
-                 temperature: float = 1.0,
+                 train_temperature: float = 1.0,
+                 inference_temperature: float = 1e-5,
                  num_responses: int = 10) -> None:
         super().__init__(vocab)
         self._encoder = encoder
         self._decoder = decoder
         self._mse_weight = 2.0
-        self._temperature = temperature
+        self.train_temperature = train_temperature
+        self.inference_temperature = inference_temperature
         self._num_responses = num_responses
         self._start_index = self.vocab.get_token_index(START_SYMBOL)
         self._end_index = self.vocab.get_token_index(END_SYMBOL)
@@ -111,7 +113,7 @@ class DialogGan(Model):
             stage = stage[0]
         else:
             stage = "generator"
-        temperature = 1.0 if self.training else self._temperature
+        temperature = self.train_temperature if self.training else self.inference_temperature
         dialog_dict = self.encode_dialog(self._encoder, source_tokens, target_tokens, temperature)
         if stage == "discriminator_real":
             dialog_latent = dialog_dict["dialog_latent"]

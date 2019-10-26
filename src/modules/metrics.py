@@ -1,13 +1,15 @@
 #!/usr/bin/env python
 from overrides import overrides
 import torch
-
+import logging
 from allennlp.training.metrics.metric import Metric
 from typing import Optional, Iterable, Callable, Set, Dict, Union
 import math
 import numpy as np
 from allennlp.training.metrics.entropy import Entropy
 from nltk.translate.bleu_score import sentence_bleu
+
+logger = logging.getLogger(__name__)
 
 
 @Metric.register("lm-perplexity")
@@ -117,7 +119,10 @@ class NLTKSentenceBLEU(Metric):
                     hypothesis = predictions[bidx, hno, :].tolist()
                     hypothesis_tokens = [htoken for htoken in hypothesis if htoken not in self._exclude_indices]
                     reference_tokens = [rtoken for rtoken in reference if rtoken not in self._exclude_indices]
-                    bleu_scores[bidx][hno][rno] = self.sentence_bleu([reference_tokens], hypothesis_tokens)
+                    try:
+                        bleu_scores[bidx][hno][rno] = self.sentence_bleu([reference_tokens], hypothesis_tokens)
+                    except ZeroDivisionError:
+                        logger.warn('Bleu Division by Zero Error')
         recall_bleu = bleu_scores.max(1).mean()
         precision_bleu = bleu_scores.max(2).mean()
         self.recall_bleus.append(recall_bleu)
