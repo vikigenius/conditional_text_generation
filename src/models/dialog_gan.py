@@ -84,6 +84,11 @@ class DialogGan(Model):
             "_stdev": Average()
         }
 
+    def encode_query(self, source_tokens: Dict[str, torch.Tensor], temperature):
+        query_dict = self._encoder(source_tokens)
+        query_latent = self._encoder.reparametrize(query_dict['prior'], query_dict['posterior'], temperature)
+        return query_latent
+
     def encode_dialog(self, encoder: VariationalEncoder,
                       source_tokens: Dict[str, torch.Tensor], target_tokens: Dict[str, torch.Tensor], temperature):
         query_dict = encoder(source_tokens)
@@ -172,6 +177,25 @@ class DialogGan(Model):
             metrics.update(self.s_bleu4.get_metric(reset=reset))
             metrics.update(self.n_bleu2.get_metric(reset=reset))
         return metrics
+
+    def decode_predictions(self, predicted_indices: torch.Tensor) -> List[str]:
+        if not isinstance(predicted_indices, numpy.ndarray):
+            predicted_indices = predicted_indices.detach().cpu().numpy()
+        all_predicted_sentences = []
+        for batch_indices in predicted_indices:
+            # Check if multiple responses are generated for each sentence
+            # if yes, decode all of them
+            if len(batch_indices.shape) > 1:
+                index_list = batch_indices.tolist()
+            else:
+                index_list = list(batch_indices.tolist())
+
+            indices = index_list
+            if self._end_index in indices:
+                indices = indices[:indices.index(self._end_index)]
+            predicted_tokens = [self.vocab.get_token_from_index(x) for x in indices]
+            all_predicted_sentences.append(' '.join(predicted_tokens[1:]))
+        return all_predicted_sentences
 
     @overrides
     def decode(self, output_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
