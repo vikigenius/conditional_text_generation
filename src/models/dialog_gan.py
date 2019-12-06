@@ -86,8 +86,9 @@ class DialogGan(Model):
 
     def encode_query(self, source_tokens: Dict[str, torch.Tensor], temperature):
         query_dict = self._encoder(source_tokens)
-        query_latent = self._encoder.reparametrize(query_dict['prior'], query_dict['posterior'], temperature)
-        return query_latent
+        self.generator._temperature = temperature
+        response_latent = self.generator(query_dict['prior'], query_dict['posterior'])["predicted_response"]
+        return response_latent
 
     def encode_dialog(self, encoder: VariationalEncoder,
                       source_tokens: Dict[str, torch.Tensor], target_tokens: Dict[str, torch.Tensor], temperature):
