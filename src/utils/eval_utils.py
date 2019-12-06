@@ -73,13 +73,16 @@ def compute_diversity(dialog_dict):
     for rno in range(num_responses):
         responses = [response for response in dialog_dict[f'response_{rno+1}']]
         responses_list.append(responses)
+    response_array = np.array(responses_list).T
     flattened_responses = [response for responses in responses_list for response in responses]
     response_lens = [len(response.split()) for response in flattened_responses]
     diversity = {
         'intra1': intra_diversity(responses_list, 1),
         'intra2': intra_diversity(responses_list, 2),
-        'inter1': inter_diversity(responses_list, 1),
-        'inter2': inter_diversity(responses_list, 2),
+        'inter1': inter_diversity(response_array.tolist(), 1),
+        'inter2': inter_diversity(response_array.tolist(), 2),
+        'corpus1': batch_diversity(flattened_responses, 1),
+        'corpus2': batch_diversity(flattened_responses, 2),
         'asl': sum(response_lens)/len(response_lens)
     }
     return diversity
