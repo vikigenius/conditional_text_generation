@@ -13,6 +13,9 @@ from allennlp.data.tokenizers import Token, Tokenizer
 from allennlp.data.token_indexers import TokenIndexer
 from allennlp.common.util import START_SYMBOL, END_SYMBOL
 from allennlp.data.fields import TextField, LabelField, MetadataField
+from allennlp.data.tokenizers import WordTokenizer
+from allennlp.data.token_indexers import SingleIdTokenIndexer
+
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -164,3 +167,47 @@ class DialogGanDatasetReader(Seq2SeqDatasetReader):
             return Instance({"source_tokens": source_field, "target_tokens": target_field, "stage": stage_field})
         else:
             return Instance({'source_tokens': source_field})
+
+
+@DatasetReader.register("sentence")
+class SentenceReader(DatasetReader):
+    """
+    ``AutoencoderDatasetReader`` class inherits Seq2SeqDatasetReader as the only
+    difference is when dealing with autoencoding tasks i.e., the target equals the source.
+    """
+    def __init__(self,
+                 tokenizer: Tokenizer = None,
+                 token_indexers: Dict[str, TokenIndexer] = None,
+                 add_start_token: bool = True,
+                 delimiter: str = "\t",
+                 max_seq_len: int = 30,
+                 key: str = 'source_tokens',
+                 lazy: bool = False) -> None:
+        super().__init__(lazy)
+        self._tokenizer = tokenizer or WordTokenizer()
+        self._token_indexers = token_indexers or {"tokens": SingleIdTokenIndexer()}
+        self._add_start_token = add_start_token
+        self._delimiter = delimiter
+        self._max_seq_len = max_seq_len
+        self._key = key
+
+    @overrides
+    def _read(self, file_path):
+        with open(cached_path(file_path), "r") as data_file:
+            logger.info("Reading instances from lines in file at: %s", file_path)
+            for _, line in enumerate(data_file):
+                sentence = line.strip("\n")
+                if sentence:
+                    yield self.text_to_instance(sentence)
+
+    @overrides
+    def text_to_instance(self, sentence: str) -> Instance:  # type: ignore
+        # pylint: disable=arguments-differ
+        tokenized_string = self._tokenizer.tokenize(sentence)
+        tokenized_string = tokenized_string[:self._max_seq_len - 2]
+        if self._add_start_token:
+            tokenized_string.insert(0, Token(START_SYMBOL))
+        tokenized_string.append(Token(END_SYMBOL))
+        sentence_field = TextField(tokenized_string, self._token_indexers)
+
+        return Instance({self._key: sentence_field})
