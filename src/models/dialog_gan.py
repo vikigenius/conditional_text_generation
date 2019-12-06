@@ -45,7 +45,7 @@ class DialogGan(Model):
         super().__init__(vocab)
         self._encoder = encoder
         self._decoder = decoder
-        self._mse_weight = 2.0
+        self._mse_weight = mse_weight
         self.train_temperature = train_temperature
         self.inference_temperature = inference_temperature
         self._num_responses = num_responses
