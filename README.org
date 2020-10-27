@@ -1,6 +1,6 @@
 * Conditional Text Generation
 ** Installation
-   Install allennlp from github master (latest) using conda or pip
+   Install allennlp 0.9.0 using conda or pip
    pip install pyro-ppl
 ** Running Experiments
    Copy data from my server data folder
