@@ -1,9 +1,10 @@
-* Conditional Text Generation
+* Adversarial Learning on the Latent Space for Diverse Dialog Generation
+PyTorch implementation of Adversarial Learning on the Latent Space for Diverse Dialog Generation (to appear in COLING 2020).
+
 ** Installation
    Install allennlp 0.9.0 using conda or pip
    pip install pyro-ppl
 ** Running Experiments
-   Copy data from my server data folder
    - VAE\\
      ~allennlp train -s models/dialog_vae --include-package src experiments/vae.jsonnet~
    - GAN (run after VAE)\\
@@ -22,7 +23,7 @@
        - decoders
          - decoder.py (Decoder base class)
          - variational_decoder.py (Variational Decoder for VAE)
-       - metrcs.py (LMPPL and NLTKSentenceBLEU)
+       - metrics.py (LMPPL and NLTKSentenceBLEU)
        - annealer.py (Different Annealing Schedules)
      - models
        - vae.py (Variational Autoencoder, SampleGenerator)
